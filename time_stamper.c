@@ -30,7 +30,9 @@
 #define N 500
 
 // virtual clock counter
-#define L 8000
+#define L 4096
+
+#define CLOCK_WRAP(i) ((i) & (L - 1)) // index wrapping macro
 
 // max lag for computing correlations
 #define MAXLAG 200
@@ -163,6 +165,8 @@ void main()
 		outputBuf[i+N] = y*32767;
 	}
 
+	halfSinc = 2*N;
+
 	DSK6713_init();		// Initialize the board support library, must be called first
 	DSK6713_LED_init(); // initialize LEDs
     hCodec = DSK6713_AIC23_openCodec(0, &config);	// open codec and get handle
@@ -266,32 +270,43 @@ void main()
 			else
 				printf("ERROR");
 
-			// increment coarse delay estimate index (same index for fine delay estimates)
-			cde_index++;
-			if (cde_index>=LL)
-				cde_index = 0;
 
 			//state = STATE_SEARCHING; // back to searching state
 			//New code! Setup for response, doublecheck math at some point, I think a sample or two may be off in timing
 			response_done = 0; //not done yet
 			response_buf_idx = 0; //index for output buffer
-			halfSinc = N;
+
 			amSending = 0;
 			//Wrap start timer around virtual clock origin.
-			vir_clock_start = L - cde_index - halfSinc; //start time
-			if (vir_clock_start < 0){vir_clock_start += L;}
+			vir_clock_start = CLOCK_WRAP(L - coarse_delay_estimate[cde_index] - 1000); //start time  //cde_index-1 -> take most recent estimate
+																							   //without -1 at start, estimate is zero
+			// increment coarse delay estimate index (same index for fine delay estimates)
+			cde_index++;
+			if (cde_index>=LL)
+				cde_index = 0;
+
+			if (vir_clock_start < 500)
+				{
+				vir_clock_start = CLOCK_WRAP( vir_clock_start + L);
+				while(vclock_counter != 0);		//wait for virtual clock tick
+				while(vclock_counter != 0);		//wait for virtual clock tick
+				}
+
+			while(vclock_counter != 0);		//wait for virtual clock tick
+
 			state = STATE_RESPONSE; //set to response for the ISR to pick the appropriate path
 
 			while(!response_done){} //Loop and wait here until the responding output code works
-			state = STATE_SEARCHING; // back to searching state, after responding
-
+				state = STATE_SEARCHING; // back to searching state, after responding
 		}
+
 	}
 }
 
 interrupt void serialPortRcvISR()
 {
 	union {Uint32 combo; short channel[2];} temp;
+	union {Uint32 combo; short channel[2];} outputData;
 
 	temp.combo = MCBSP_read(DSK6713_AIC23_DATAHANDLE);
 	// Note that right channel is in temp.channel[0]
@@ -346,7 +361,6 @@ interrupt void serialPortRcvISR()
 		MCBSP_write(DSK6713_AIC23_DATAHANDLE, (short)0); // not necessary
 	}
 	else if (state==STATE_RECORDING) {
-
 		// put sample in recording buffer
 		recbuf[recbufindex] = (float) temp.channel[0];  // right channel
 		recbufindex++;
@@ -361,8 +375,6 @@ interrupt void serialPortRcvISR()
 	}
 
 	else if(state==STATE_RESPONSE){
-		union {Uint32 combo; short channel[2];} outputData;
-		outputData.channel[1] = vclock_counter; //Just because, doesn't really do anything
 
 		if(vclock_counter==vir_clock_start){ //Okay, we've reached the appropriate wrap around point where we should start sending the dataers
 			amSending = 1;
@@ -381,14 +393,17 @@ interrupt void serialPortRcvISR()
 			response_done = 1;
 		}
 		local_carrier_phase = ((char) vclock_counter) & 3;
-		MCBSP_write(DSK6713_AIC23_DATAHANDLE, outputData.combo); // not necessary
+
 	}
 
 	// update virtual clock (cycles from 0 to L-1)
 	vclock_counter++;
 	if (vclock_counter>=L) {
 		vclock_counter = 0; // wrap
-	}
+		outputData.channel[1] = 32000; //Left channel for debug, doesn't really do anything	//this does not run, if there are no incomming syncs???
+	}else outputData.channel[1] = 0; //Left channel for debug, doesn't really do anything
+
+	MCBSP_write(DSK6713_AIC23_DATAHANDLE, outputData.combo); // not necessary
 
 }
 

@@ -111,32 +111,32 @@ endif
 
 # Add inputs and outputs from these tool invocations to the build variables 
 EXE_OUTPUTS += \
-Copy\ of\ time_stamper.out \
+return_time_stamper.out \
 
 EXE_OUTPUTS__QUOTED += \
-"Copy of time_stamper.out" \
+"return_time_stamper.out" \
 
 BIN_OUTPUTS += \
-Copy\ of\ time_stamper.hex \
+return_time_stamper.hex \
 
 BIN_OUTPUTS__QUOTED += \
-"Copy of time_stamper.hex" \
+"return_time_stamper.hex" \
 
 
 # All Target
-all: Copy\ of\ time_stamper.out
+all: return_time_stamper.out
 
 # Tool invocations
-Copy\ of\ time_stamper.out: $(OBJS) $(CMD_SRCS) $(GEN_CMDS)
+return_time_stamper.out: $(OBJS) $(CMD_SRCS) $(GEN_CMDS)
 	@echo 'Building target: $@'
 	@echo 'Invoking: C6000 Linker'
-	"C:/TI_DSK/ccsv6/tools/compiler/c6000_7.4.8/bin/cl6x" -mv6713 --abi=coffabi -g --define=CHIP_6713 --display_error_number --diag_warning=225 --diag_wrap=off --mem_model:const=far --mem_model:data=far -z --stack_size=0x400 -m"Copy of time_stamper.map" --heap_size=0x400 -i"C:/TI_DSK/ccsv6/tools/compiler/c6000_7.4.8/lib" -i"C:/TI_DSK/ccsv6/tools/compiler/c6000_7.4.8/include" --reread_libs --warn_sections --display_error_number --diag_wrap=off --xml_link_info="Copy of time_stamper_linkInfo.xml" --rom_model -o "Copy of time_stamper.out" $(ORDERED_OBJS)
+	"C:/TI_DSK/ccsv6/tools/compiler/c6000_7.4.8/bin/cl6x" -mv6713 --abi=coffabi -g --define=CHIP_6713 --display_error_number --diag_warning=225 --diag_wrap=off --mem_model:const=far --mem_model:data=far -z --stack_size=0x400 -m"return_time_stamper.map" --heap_size=0x400 -i"C:/TI_DSK/ccsv6/tools/compiler/c6000_7.4.8/lib" -i"C:/TI_DSK/ccsv6/tools/compiler/c6000_7.4.8/include" --reread_libs --warn_sections --display_error_number --diag_wrap=off --xml_link_info="return_time_stamper_linkInfo.xml" --rom_model -o "return_time_stamper.out" $(ORDERED_OBJS)
 	@echo 'Finished building target: $@'
 	@echo ' '
 
-Copy\ of\ time_stamper.hex: $(EXE_OUTPUTS)
+return_time_stamper.hex: $(EXE_OUTPUTS)
 	@echo 'Invoking: C6000 Hex Utility'
-	"C:/TI_DSK/ccsv6/tools/compiler/c6000_7.4.8/bin/hex6x"  -o "Copy of time_stamper.hex" $(EXE_OUTPUTS__QUOTED)
+	"C:/TI_DSK/ccsv6/tools/compiler/c6000_7.4.8/bin/hex6x"  -o "return_time_stamper.hex" $(EXE_OUTPUTS__QUOTED)
 	@echo 'Finished building: $@'
 	@echo ' '
 
