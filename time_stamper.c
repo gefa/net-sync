@@ -118,6 +118,8 @@ interrupt void serialPortRcvISR(void);
 void main()
 {
 
+	int bug=0;//used for debug
+
 	// initialize coarse delay estimate buffer
 	for (i=0;i<LL;i++)
 		coarse_delay_estimate[i] = 0;
@@ -276,20 +278,23 @@ void main()
 			response_done = 0; //not done yet
 			response_buf_idx = 0; //index for output buffer
 
-			amSending = 0;
 			//Wrap start timer around virtual clock origin.
-			vir_clock_start = CLOCK_WRAP(L - coarse_delay_estimate[cde_index] - 1000); //start time  //cde_index-1 -> take most recent estimate
+			vir_clock_start = (L - coarse_delay_estimate[cde_index] - 900); //start time  //cde_index-1 -> take most recent estimate
 																							   //without -1 at start, estimate is zero
 			// increment coarse delay estimate index (same index for fine delay estimates)
 			cde_index++;
 			if (cde_index>=LL)
 				cde_index = 0;
 
-			if (vir_clock_start < 500)
+			if (vir_clock_start < 0)
 				{
-				vir_clock_start = CLOCK_WRAP( vir_clock_start + L);
+				vir_clock_start = CLOCK_WRAP( vir_clock_start );
 				while(vclock_counter != 0);		//wait for virtual clock tick
 				while(vclock_counter != 0);		//wait for virtual clock tick
+				//while(vclock_counter != 0);		//wait for virtual clock tick
+				if(bug==5)
+					bug=0;
+				bug++;
 				}
 
 			while(vclock_counter != 0);		//wait for virtual clock tick
@@ -391,6 +396,7 @@ interrupt void serialPortRcvISR()
 		}
 		if(response_buf_idx==response_buf_idx_max){
 			response_done = 1;
+			amSending = 0;
 		}
 		local_carrier_phase = ((char) vclock_counter) & 3;
 
