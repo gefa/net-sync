@@ -28,6 +28,7 @@
 
 // 2*N+1 is the number of samples in the sinc function
 #define N 500
+#define N2 1000
 
 // virtual clock counter
 #define L 4096
@@ -86,6 +87,7 @@ float ys[2*N+2*M];     // quadrature downmixed buffer
 short recbufindex = 0;
 int state = STATE_SEARCHING;
 short vclock_counter = 0; // virtual clock counter
+short vir_clock_history[LL];
 short recbuf_start_clock = 0; // virtual clock counter for first sample in recording buffer
 short coarse_delay_estimate[LL];
 float fine_delay_estimate[LL];
@@ -102,6 +104,7 @@ volatile short response_done = 0; //not done yet
 volatile short response_buf_idx = 0; //index for output buffer
 volatile short response_buf_idx_max = OUTPUT_BUF_SIZE;
 volatile short amSending = 0;
+volatile short HighSample = 0;
 
 DSK6713_AIC23_CodecHandle hCodec;							// Codec handle
 DSK6713_AIC23_Config config = DSK6713_AIC23_DEFAULTCONFIG;  // Codec configuration with default settings
@@ -123,6 +126,9 @@ void main()
 	// initialize coarse delay estimate buffer
 	for (i=0;i<LL;i++)
 		coarse_delay_estimate[i] = 0;
+
+	for (i=0; i<LL;++i)
+		vir_clock_history[i]=0;
 
 	// set up the cosine and sin matched filters for searching
 	// also initialize searching buffer
@@ -279,30 +285,51 @@ void main()
 			response_buf_idx = 0; //index for output buffer
 
 			//Wrap start timer around virtual clock origin.
-			vir_clock_start = (L - coarse_delay_estimate[cde_index] - 900); //start time  //cde_index-1 -> take most recent estimate
-																							   //without -1 at start, estimate is zero
-			// increment coarse delay estimate index (same index for fine delay estimates)
-			cde_index++;
-			if (cde_index>=LL)
-				cde_index = 0;
+			vir_clock_start = (L - CLOCK_WRAP(coarse_delay_estimate[cde_index]) - N2); //start time  //cde_index-1 -> take most recent estimate
+																				//2N because course estimate points to beginning of sinc not the peak (check this?)
+			//vir_clock_start = CLOCK_WRAP(coarse_delay_estimate[cde_index]);//for debugg
 
+			vir_clock_start += 192*vir_clock_start*0.000125;//outgoing sinc has 4096 virtual clock, incomming sinc has 8000 vir.clock
+															// they are 96*2=192 samples off, accumulated error is therefore:
+															// 192*virtual_clock_start/8000
+
+			vir_clock_history[cde_index]=vclock_counter;																				   //without -1 at start, estimate is zero
+		    short CurTime = vclock_counter;
+
+		    if (vir_clock_start < 0)
+				{
+				vir_clock_start = CLOCK_WRAP( vir_clock_start );
+				}
+			/*
 			if (vir_clock_start < 0)
 				{
 				vir_clock_start = CLOCK_WRAP( vir_clock_start );
 				while(vclock_counter != 0);		//wait for virtual clock tick
 				while(vclock_counter != 0);		//wait for virtual clock tick
 				//while(vclock_counter != 0);		//wait for virtual clock tick
-				if(bug==5)
+
+				//Debugging variable, doesn't do anything
+				if(bug>=5)
 					bug=0;
 				bug++;
-				}
 
+				}
+			*/
+
+			if(CurTime > vir_clock_start){
+				while(vclock_counter != 0); //wait one additional tick because we've already passed previous starting point we need
+			}
 			while(vclock_counter != 0);		//wait for virtual clock tick
 
 			state = STATE_RESPONSE; //set to response for the ISR to pick the appropriate path
 
 			while(!response_done){} //Loop and wait here until the responding output code works
 				state = STATE_SEARCHING; // back to searching state, after responding
+
+			// increment coarse delay estimate index (same index for fine delay estimates)
+			cde_index++;
+			if (cde_index>=LL)
+				cde_index = 0;
 		}
 
 	}
@@ -324,7 +351,6 @@ interrupt void serialPortRcvISR()
 	if(state==STATE_CALCULATION){ //Do nothing, since it originally did nothing. this loop is to ensure the appropriate output buffer is written.
 		local_carrier_phase = ((char) vclock_counter) & 3;
 
-		MCBSP_write(DSK6713_AIC23_DATAHANDLE, (short)0); // not necessary
 	}
 
 	else if (state==STATE_SEARCHING) {
@@ -363,7 +389,6 @@ interrupt void serialPortRcvISR()
 
 		local_carrier_phase = ((char) vclock_counter) & 3;
 
-		MCBSP_write(DSK6713_AIC23_DATAHANDLE, (short)0); // not necessary
 	}
 	else if (state==STATE_RECORDING) {
 		// put sample in recording buffer
@@ -376,7 +401,7 @@ interrupt void serialPortRcvISR()
 
 		local_carrier_phase = ((char) vclock_counter) & 3;
 
-		MCBSP_write(DSK6713_AIC23_DATAHANDLE, (short)0); // not necessary
+
 	}
 
 	else if(state==STATE_RESPONSE){
@@ -406,8 +431,12 @@ interrupt void serialPortRcvISR()
 	vclock_counter++;
 	if (vclock_counter>=L) {
 		vclock_counter = 0; // wrap
-		outputData.channel[1] = 32000; //Left channel for debug, doesn't really do anything	//this does not run, if there are no incomming syncs???
-	}else outputData.channel[1] = 0; //Left channel for debug, doesn't really do anything
+		HighSample = 32000; //reset output clock pulse to highest value
+	}
+	else {
+		HighSample = HighSample >> 1;
+	}
+	outputData.channel[1] = HighSample; //Left channel for debug, doesn't really do anything
 
 	MCBSP_write(DSK6713_AIC23_DATAHANDLE, outputData.combo); // not necessary
 
