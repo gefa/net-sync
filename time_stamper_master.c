@@ -31,7 +31,7 @@
 #define N2 1000
 
 // virtual clock counter
-#define L 4096
+#define L 4000
 
 #define CLOCK_WRAP(i) ((i) & (L - 1)) // index wrapping macro
 
@@ -120,8 +120,6 @@ interrupt void serialPortRcvISR(void);
 
 void main()
 {
-
-	int bug=0;//used for debug
 
 	// initialize coarse delay estimate buffer
 	for (i=0;i<LL;i++)
@@ -289,7 +287,7 @@ void main()
 																				//2N because course estimate points to beginning of sinc not the peak (check this?)
 			//vir_clock_start = CLOCK_WRAP(coarse_delay_estimate[cde_index]);//for debugg
 
-			vir_clock_start += 192*vir_clock_start*0.000125;//outgoing sinc has 4096 virtual clock, incomming sinc has 8000 vir.clock
+			//vir_clock_start += 192*vir_clock_start*0.000125;//outgoing sinc has 4096 virtual clock, incomming sinc has 8000 vir.clock
 															// they are 96*2=192 samples off, accumulated error is therefore:
 															// 192*virtual_clock_start/8000
 
@@ -410,13 +408,8 @@ interrupt void serialPortRcvISR()
 			amSending = 1;
 		}
 		if(amSending){ //write the buffered output waveform to the output file, adn increment the index counter
-			short tempD = outputBuf[response_buf_idx];
-//			if((response_buf_idx & 3) == 0) tempD *= 0;
-//			if((response_buf_idx & 3) == 1) tempD *= 1;
-//			if((response_buf_idx & 3) == 2) tempD *= 0;
-//			if((response_buf_idx & 3) == 3) tempD *= -1;
+			outputData.channel[0] = outputBuf[response_buf_idx];
 
-			outputData.channel[0] = tempD;
 			response_buf_idx++;
 		}
 		if(response_buf_idx==response_buf_idx_max){
@@ -433,7 +426,8 @@ interrupt void serialPortRcvISR()
 		vclock_counter = 0; // wrap
 		HighSample = 32000; //reset output clock pulse to highest value
 	}
-	else {
+	else
+	{
 		HighSample = HighSample >> 1;
 	}
 	outputData.channel[1] = HighSample; //Left channel for debug, doesn't really do anything

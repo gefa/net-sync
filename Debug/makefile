@@ -8,7 +8,7 @@ CG_TOOL_ROOT := C:/TI_DSK/ccsv6/tools/compiler/c6000_7.4.8
 
 ORDERED_OBJS += \
 $(GEN_CMDS__FLAG) \
-"./time_stamper.obj" \
+"./time_stamper_master.obj" \
 "./vectors.obj" \
 "../C6713.cmd" \
 -l"libc.a" \
@@ -111,40 +111,40 @@ endif
 
 # Add inputs and outputs from these tool invocations to the build variables 
 EXE_OUTPUTS += \
-return_time_stamper.out \
+time_stamper_master.out \
 
 EXE_OUTPUTS__QUOTED += \
-"return_time_stamper.out" \
+"time_stamper_master.out" \
 
 BIN_OUTPUTS += \
-return_time_stamper.hex \
+time_stamper_master.hex \
 
 BIN_OUTPUTS__QUOTED += \
-"return_time_stamper.hex" \
+"time_stamper_master.hex" \
 
 
 # All Target
-all: return_time_stamper.out
+all: time_stamper_master.out
 
 # Tool invocations
-return_time_stamper.out: $(OBJS) $(CMD_SRCS) $(GEN_CMDS)
+time_stamper_master.out: $(OBJS) $(CMD_SRCS) $(GEN_CMDS)
 	@echo 'Building target: $@'
 	@echo 'Invoking: C6000 Linker'
-	"C:/TI_DSK/ccsv6/tools/compiler/c6000_7.4.8/bin/cl6x" -mv6713 --abi=coffabi -g --define=CHIP_6713 --display_error_number --diag_warning=225 --diag_wrap=off --mem_model:const=far --mem_model:data=far -z --stack_size=0x400 -m"return_time_stamper.map" --heap_size=0x400 -i"C:/TI_DSK/ccsv6/tools/compiler/c6000_7.4.8/lib" -i"C:/TI_DSK/ccsv6/tools/compiler/c6000_7.4.8/include" --reread_libs --warn_sections --display_error_number --diag_wrap=off --xml_link_info="return_time_stamper_linkInfo.xml" --rom_model -o "return_time_stamper.out" $(ORDERED_OBJS)
+	"C:/TI_DSK/ccsv6/tools/compiler/c6000_7.4.8/bin/cl6x" -mv6713 --abi=coffabi -g --define=CHIP_6713 --display_error_number --diag_warning=225 --diag_wrap=off --mem_model:const=far --mem_model:data=far -z --stack_size=0x400 -m"time_stamper_master.map" --heap_size=0x400 -i"C:/TI_DSK/ccsv6/tools/compiler/c6000_7.4.8/lib" -i"C:/TI_DSK/ccsv6/tools/compiler/c6000_7.4.8/include" --reread_libs --warn_sections --display_error_number --diag_wrap=off --xml_link_info="time_stamper_master_linkInfo.xml" --rom_model -o "time_stamper_master.out" $(ORDERED_OBJS)
 	@echo 'Finished building target: $@'
 	@echo ' '
 
-return_time_stamper.hex: $(EXE_OUTPUTS)
+time_stamper_master.hex: $(EXE_OUTPUTS)
 	@echo 'Invoking: C6000 Hex Utility'
-	"C:/TI_DSK/ccsv6/tools/compiler/c6000_7.4.8/bin/hex6x"  -o "return_time_stamper.hex" $(EXE_OUTPUTS__QUOTED)
+	"C:/TI_DSK/ccsv6/tools/compiler/c6000_7.4.8/bin/hex6x"  -o "time_stamper_master.hex" $(EXE_OUTPUTS__QUOTED)
 	@echo 'Finished building: $@'
 	@echo ' '
 
 # Other Targets
 clean:
 	-$(RM) $(EXE_OUTPUTS__QUOTED)$(BIN_OUTPUTS__QUOTED)
-	-$(RM) "time_stamper.pp" 
-	-$(RM) "time_stamper.obj" "vectors.obj" 
+	-$(RM) "time_stamper_master.pp" 
+	-$(RM) "time_stamper_master.obj" "vectors.obj" 
 	-$(RM) "vectors.pp" 
 	-@echo 'Finished clean'
 	-@echo ' '
