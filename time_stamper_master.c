@@ -110,20 +110,18 @@ float ys[2*N+2*M];     		// quadrature downmixed buffer
 short recbufindex = 0;		//
 
 //System state variables
-int state = STATE_SEARCHING;
-short vclock_counter = 0; // virtual clock counter
-short vir_clock_history[MAX_STORED_DELAYS_COARSE];
-short recbuf_start_clock = 0; // virtual clock counter for first sample in recording buffer
+volatile int state = STATE_SEARCHING;
+volatile short vclock_counter = 0; // virtual clock counter
+volatile short recbuf_start_clock = 0; // virtual clock counter for first sample in recording buffer
 short coarse_delay_estimate[MAX_STORED_DELAYS_COARSE];
 float fine_delay_estimate[MAX_STORED_DELAYS_FINE];
 short cde_index = 0;
 short fde_index = 0;
-char local_carrier_phase = 0;
+volatile char local_carrier_phase = 0;
 char r = 0;
 double phase_correction_factor;
-short max_samp = 0;
 
-short vir_clock_start;
+volatile short vir_clock_start;
 short halfSinc;
 short transmitSincPulseBuffer[OUTPUT_BUF_SIZE];
 volatile short response_done = 0; 						//not done var for response state
@@ -131,6 +129,8 @@ volatile short response_buf_idx = 0; 					//index for output buffer
 volatile short response_buf_idx_max = OUTPUT_BUF_SIZE;
 volatile short MasterResponseSendingHuh = 0;			//control var for starting the sending of the response from master
 volatile short ClockPulse = 0;							//Used for generating the master clock pulse output value
+volatile short calculation_done = 0;		//debug
+volatile short v_clk[3];					//debug
 
 DSK6713_AIC23_CodecHandle hCodec;							// Codec handle
 DSK6713_AIC23_Config config = DSK6713_AIC23_DEFAULTCONFIG;  // Codec configuration with default settings
@@ -152,14 +152,13 @@ void SetupReceiveTrigonometricMatchedFilters();
 
 void main()
 {
+	union {Uint32 combo; short channel[2];} temp;
+	temp.combo = 0; //Set to zero now for missed sets.
 
 	// reset coarse and fine delay estimate buffers
 	for (i=0;i<MAX_STORED_DELAYS_COARSE;i++)
 		coarse_delay_estimate[i] = 0;
 		fine_delay_estimate[i] = 0.0;
-
-	for (i=0; i<MAX_STORED_DELAYS_COARSE;++i)
-		vir_clock_history[i]=0;
 
 	// set up the cosine and sin matched filters for searching
 	// also initialize searching buffer
@@ -283,14 +282,7 @@ void main()
 				else
 					printf("ERROR");
 
-				// No need to update indexes, we dont need history
-				// increment coarse delay estimate index (same index for fine delay estimates)
-				cde_index++;
-				if (cde_index>=MAX_STORED_DELAYS_COARSE)
-					cde_index = 0;
-				fde_index++;
-				if (fde_index>=MAX_STORED_DELAYS_FINE)
-					fde_index = 0;
+
 
 				// --- Calculations Finished ---
 
@@ -302,17 +294,50 @@ void main()
 
 
 				//Wrap start timer around virtual clock origin.
-				vir_clock_start = CLOCK_WRAP(L - CLOCK_WRAP(coarse_delay_estimate[cde_index-1]) - N2); //start time  //cde_index-1 -> take most recent estimate
+				vir_clock_start = CLOCK_WRAP(L - CLOCK_WRAP(coarse_delay_estimate[cde_index]) - N2); //start time  //cde_index-1 -> take most recent estimate
 				//course delay estimate wraps with respect to L, I dont think that's good?
 
+				//vir_clock_start = CLOCK_WRAP( CLOCK_WRAP(coarse_delay_estimate[cde_index]) );
 
-				if(CLOCK_WRAP(coarse_delay_estimate[cde_index-1])>vclock_counter)
-					while(vclock_counter != 0) ;
+				calculation_done = 1;
 
-				if(CurTime > vir_clock_start){
-					while(vclock_counter != 0); //wait one additional tick because we've already passed previous starting point we need
-					while(vclock_counter != 0); //wait one additional tick because we've already passed previous starting point we need
+				if(CLOCK_WRAP(coarse_delay_estimate[cde_index])>vclock_counter){//i dont think this triggers ever
+					temp.channel[0] = 25000;
+					MCBSP_write(DSK6713_AIC23_DATAHANDLE, temp.combo);
+
+					if(vclock_counter==0){
+						v_clk[0]=666;
+						v_clk[0]=vclock_counter;
+						while(vclock_counter != (L-1)) ;
+					}else
+						while(vclock_counter != 0) ;
 				}
+
+				if(CurTime > vir_clock_start){//i dont think this triggers ever
+					temp.channel[0] = -15000;
+					MCBSP_write(DSK6713_AIC23_DATAHANDLE, temp.combo);
+
+					if(vclock_counter==0){
+							v_clk[0]=666;
+						v_clk[1]=vclock_counter;
+						while(vclock_counter != (L-1)) ;
+						while(vclock_counter != (L-1)) ;
+					}
+					else{
+						while(vclock_counter != 0); //wait one additional tick because we've already passed previous starting point we need
+						while(vclock_counter != 0); //wait one additional tick because we've already passed previous starting point we need
+					}
+				}
+
+				/*if((CLOCK_WRAP(coarse_delay_estimate[cde_index])>vclock_counter) && (CurTime > vir_clock_start)){//i dont think this triggers ever
+					//temp.channel[0] = -15000;
+					//MCBSP_write(DSK6713_AIC23_DATAHANDLE, temp.combo);
+
+					v_clk[2]=vclock_counter;
+					while(vclock_counter != 0); //wait one additional tick because we've already passed previous starting point we need
+					while(vclock_counter != 0); //wait one additional tick because we've already passed previous starting point we need
+					while(vclock_counter != 0); //wait one additional tick because we've already passed previous starting point we need
+				}*/
 
 				/*if(vir_clock_start<(L-N) && cur_vir>vclock_counter){
 					while(vclock_counter != 0) ; //wait one additional tick because we've already passed previous starting point we need
@@ -324,6 +349,15 @@ void main()
 
 				while(!response_done) ; //Loop and wait here until the responding output code works
 					state = STATE_SEARCHING; // back to searching state, after responding
+
+				// No need to update indexes, we dont need history
+				// increment coarse delay estimate index (same index for fine delay estimates)
+				cde_index++;
+				if (cde_index>=MAX_STORED_DELAYS_COARSE)
+					cde_index = 0;
+				fde_index++;
+				if (fde_index>=MAX_STORED_DELAYS_FINE)
+					fde_index = 0;
 			}
 
 
@@ -372,7 +406,8 @@ interrupt void serialPortRcvISR()
 				zs+= matchedFilterSine[i]*buf[i];
 			}
 			z = zc*zc+zs*zs;
-
+													//measuring clock cyles with run->clock->enable
+													//yields max ISR time:~40us which meets period of 125us (8kHz sampling,225MHz clock)
 			if ((z>T1)&&(local_carrier_phase==0)) {  // xxx should make sure this runs in real-time
 				state = STATE_RECORDING; // enter "recording" state (takes effect in next interrupt)
 				recbuf_start_clock = vclock_counter - M; // virtual clock tick at at start of recording buffer
@@ -430,6 +465,12 @@ interrupt void serialPortRcvISR()
 
 		tempOutput.channel[MASTER_TRANSMIT_CHANNEL_CLOCK_PULSE] = ClockPulse; //Left channel for debug, doesn't really do anything
 
+
+		if(calculation_done)
+		{
+			calculation_done=0;
+			tempOutput.channel[MASTER_TRANSMIT_CHANNEL_CLOCK_PULSE] = 15000;
+		}
 
 	}
 
