@@ -144,6 +144,7 @@ short max_samp = 0;
 
 //Master sinc response variables
 volatile short vir_clock_start; 
+volatile short CurTime = 0;
 short halfSinc;
 short transmitSincPulseBuffer[OUTPUT_BUF_SIZE];
 volatile short response_done = 0; 						//not done var for response state
@@ -156,6 +157,10 @@ volatile short v_clk[3];					//debug
 
 //Slave transmit variables
 short pulse_counter = SLAVE_PULSE_COUNTER_MIN;
+
+//ISR combos
+union {Uint32 combo; short channel[2];} tempOutput;
+union {Uint32 combo; short channel[2];} tempInput;
 
 DSK6713_AIC23_CodecHandle hCodec;							// Codec handle
 DSK6713_AIC23_Config config = DSK6713_AIC23_DEFAULTCONFIG;  // Codec configuration with default settings
@@ -191,8 +196,6 @@ void runReceviedSincPulseTimingAnalysis();
 
 void main()
 {
-	union {Uint32 combo; short channel[2];} temp;
-	temp.combo = 0; //Set to zero now for missed sets.
 
 	// reset coarse and fine delay estimate buffers
 	for (i=0;i<MAX_STORED_DELAYS_COARSE;i++)
@@ -239,6 +242,7 @@ void main()
 			else if (state==STATE_CALCULATION) {
 				//printf wrecks the real-time operation
 				//printf("Buffer recorded: %d %f.\n",recbuf_start_clock,z);
+
 				z = 0;  // clear correlation sum
 				// -----------------------------------------------
 				// this is where we estimate the time of arrival
@@ -255,18 +259,17 @@ void main()
 				fde_index++;
 				if (fde_index>=MAX_STORED_DELAYS_FINE)
 					fde_index = 0;
-			
+			}
 		#elif (NODE_TYPE==SLAVE_NODE)
 			//Do nothing, we're the slave. All real calculations occur during the ISR
 		#endif
+
 
 	}
 }
 
 interrupt void serialPortRcvISR()
 {
-	union {Uint32 combo; short channel[2];} tempInput;
-	union {Uint32 combo; short channel[2];} tempOutput;
 
 	tempInput.combo = MCBSP_read(DSK6713_AIC23_DATAHANDLE);
 	tempOutput.combo = 0; //Set to zero now for missed sets.
@@ -384,6 +387,9 @@ void SetupReceiveTrigonometricMatchedFilters(){
 */
 void runMasterResponseSincPulseTimingControl(){
 	// --- Prepare for Response State ---
+	union {Uint32 combo; short channel[2];} temp;
+	temp.combo = 0; //Set to zero now for missed sets.
+
 	response_done = 0; //not done yet
 	response_buf_idx = 0; //index for output buffer
 	//Wrap start timer around virtual clock origin.
@@ -431,6 +437,7 @@ void runMasterResponseSincPulseTimingControl(){
 
 
 void runSearchingStateCodeISR(){
+
 		// put sample in searching buffer
 	buf[bufindex] = (float) tempInput.channel[MASTER_RECEIVE_FROM_SLAVE_CHANNEL];  // right channel
 
@@ -469,6 +476,7 @@ void runRecordingStateCodeISR(){
 	recbuf[recbufindex] = (float) tempInput.channel[MASTER_RECEIVE_FROM_SLAVE_CHANNEL];  // right channel
 	recbufindex++;
 	if (recbufindex>=(2*N+2*M)) {
+		CurTime = vclock_counter;
 		state = STATE_CALCULATION;  // buffer is full (stop recording)
 		recbufindex = 0; // shouldn't be necessary
 	}
@@ -571,7 +579,8 @@ void runReceivedPulseBufferDownmixing(){
 
 float sumFloatArray(float* array, short numElmts){
 	float sum = 0.0;
-	for(short idx; idx < numElmts; idx++){
+	short idx = 0;
+	for(idx=0; idx < numElmts; idx++){
 		sum += array[idx];
 	}
 	return sum;
