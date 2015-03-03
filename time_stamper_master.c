@@ -25,7 +25,8 @@
 #define MASTER_NODE 1
 #define SLAVE_NODE 	2
 
-//Node type - This changes whether setting
+
+//Node type - This changes whether setting 
 #define NODE_TYPE MASTER_NODE
 
 //Audio codec sample frequency
@@ -47,8 +48,8 @@
 // virtual clock counter maximum
 #define L (1 << 12)	//4096
 
-#define SLAVE_PULSE_COUNTER_MIN (-L/2)
-#define SLAVE_PULSE_COUNTER_MAX (L/2)
+#define SLAVE_PULSE_COUNTER_MIN (-(L*2))
+#define SLAVE_PULSE_COUNTER_MAX (L*2)
 
 #define CLOCK_WRAP(i) ((i) & (L - 1)) // index wrapping macro
 
@@ -177,6 +178,8 @@ void SetupTransmitModulatedSincPulseBuffer();
 void SetupReceiveBasebandSincPulseBuffer();
 void SetupReceiveTrigonometricMatchedFilters();
 void runReceivedPulseBufferDownmixing();
+void runSlaveSincPulseTimingUpdateCalcs();
+
 
 //State functions run during ISR
 void runSearchingStateCodeISR();
@@ -249,7 +252,22 @@ void main()
 
 			}
 		#elif (NODE_TYPE==SLAVE_NODE)
+
 			//Do nothing, we're the slave. All real calculations occur during the ISR
+			if(state!=STATE_CALCULATION){
+				//Still do nothing
+				
+			}
+			else if (state==STATE_CALCULATION){
+				
+				runReceivedPulseBufferDownmixing();
+				runReceviedSincPulseTimingAnalysis();
+				
+				//Now we calculate the new center clock because YOLO
+				//runSlaveSincPulseTimingUpdateCalcs();
+
+			}
+			
 		#endif
 
 
@@ -283,6 +301,8 @@ interrupt void serialPortRcvISR()
 		else{
 			tempOutput.channel[TRANSMIT_SINC] = 0;
 		}
+
+
 	#endif
 
 
@@ -303,7 +323,24 @@ interrupt void serialPortRcvISR()
 
 	//Run all interrupt routines for the slave node here
 	#elif (NODE_TYPE==SLAVE_NODE)
-
+		
+		//Control code for states and receiving stuff
+		if(state==STATE_SEARCHING) {
+			runSearchingStateCodeISR();
+		}
+		else if(state==STATE_RECORDING){
+			runRecordingStateCodeISR();
+		}
+		else if(state==STATE_CALCULATION){
+			runCalculationStateCodeISR();
+		}
+		else if(state==STATE_TRANSMIT){
+			//No special response for slave
+		}
+		else {
+			//ERROR in STATE CODE LOGIC
+		}
+		
 	#endif
 
 	//Write the output sample to the audio codec
@@ -550,3 +587,22 @@ void runReceivedPulseBufferDownmixing(){
 	}
 }
 
+/*
+float sumFloatArray(float* array, short numElmts){
+	float sum = 0.0;
+	short idx = 0;
+	for(idx=0; idx < numElmts; idx++){
+		sum += array[idx];
+	}
+	return sum;
+}
+*/
+
+/*
+	Calculates the new virtual clock times based on incoming sinc pulse timing estimates.
+*/
+/*
+void runSlaveSincPulseTimingUpdateCalcs(){
+	slaveNewVClk = coarse_delay_estimate[cde_index] / 2; //This math is probably stupidly off because I need to compensate for different total clocks sometimes... maybe?
+}
+*/
