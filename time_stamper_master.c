@@ -26,7 +26,7 @@
 #define SLAVE_NODE 	2
 
 //Node type - This changes whether setting 
-#define NODE_TYPE MASTER_NODE
+#define NODE_TYPE SLAVE_NODE
 
 //Audio codec sample frequency
 #define DSK_SAMPLE_FREQ DSK6713_AIC23_FREQ_8KHZ
@@ -47,8 +47,8 @@
 // virtual clock counter maximum
 #define L (1 << 12)	//4096
 
-#define SLAVE_PULSE_COUNTER_MIN (-L)
-#define SLAVE_PULSE_COUNTER_MAX (L)
+#define SLAVE_PULSE_COUNTER_MIN (-(L*2))
+#define SLAVE_PULSE_COUNTER_MAX (L*2)
 
 #define CLOCK_WRAP(i) ((i) & (L - 1)) // index wrapping macro
 
