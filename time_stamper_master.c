@@ -156,11 +156,7 @@ volatile short calculation_done = 0;		//debug
 volatile short v_clk[3];					//debug
 
 //Slave transmit variables
-volatile short pulse_counter = SLAVE_PULSE_COUNTER_MIN;
-volatile short slaveNewVClk = 0; 							//calculated new virtiual clock value with respect to the current running vclock counter
-volatile short slaveNewVClkOff = 0;							//Unused
-volatile short slaveNewVClkF = 0.0;							//Unused
-volatile short slaveNewVClkFOff = 0.0;						//Unused
+short pulse_counter = SLAVE_PULSE_COUNTER_MIN;
 
 //ISR combos
 union {Uint32 combo; short channel[2];} tempOutput;
@@ -255,26 +251,7 @@ void main()
 				runReceviedSincPulseTimingAnalysis();
 				// --- Prepare for Response State ---
 				runMasterResponseSincPulseTimingControl();
-								// increment delay estimate index (now different index for fine delay estimates)
-				cde_index++;
-				if (cde_index>=MAX_STORED_DELAYS_COARSE)
-					cde_index = 0;
-				fde_index++;
-				if (fde_index>=MAX_STORED_DELAYS_FINE)
-					fde_index = 0;
-			}
-		#elif (NODE_TYPE==SLAVE_NODE)
-			if(state!=STATE_CALCULATION){
-				//Still do nothing
-				
-			}
-			else if (state==STATE_CALCULATION){
-				
-				runReceivedPulseBufferDownmixing();
-				runReceviedSincPulseTimingAnalysis();
-				
-				//Now we calculate the new center clock because YOLO
-				
+
 				// increment delay estimate index (now different index for fine delay estimates)
 				cde_index++;
 				if (cde_index>=MAX_STORED_DELAYS_COARSE)
@@ -283,7 +260,8 @@ void main()
 				if (fde_index>=MAX_STORED_DELAYS_FINE)
 					fde_index = 0;
 			}
-			
+		#elif (NODE_TYPE==SLAVE_NODE)
+			//Do nothing, we're the slave. All real calculations occur during the ISR
 		#endif
 
 
@@ -310,7 +288,7 @@ interrupt void serialPortRcvISR()
 		}
 	
 	#elif(NODE_TYPE==SLAVE_NODE)
-		if (vclock_counter>=(2*L)){ //runs at 1/2x rate of master for clock pulses, might want to switch variables?
+		if (vclock_counter>=(L)){ //runs at 1/2x rate of master for clock pulses, might want to switch variables?
 			vclock_counter = 0;
 			tempOutput.channel[SLAVE_TRANSMIT_SYNC_CLOCK_CHANNEL] = 32000;
 		}
@@ -322,7 +300,7 @@ interrupt void serialPortRcvISR()
 	if(calculation_done)
 	{
 		calculation_done=0;
-		tempOutput.channel[SLAVE_TRANSMIT_SYNC_CLOCK_CHANNEL] = 15000;
+		tempOutput.channel[MASTER_TRANSMIT_CHANNEL_CLOCK_PULSE] = 15000;
 	}
 	// ---- Common ----- ----- ----- 
 	local_carrier_phase = ((char) vclock_counter) & 3;
@@ -342,38 +320,17 @@ interrupt void serialPortRcvISR()
 		else if(state==STATE_RESPONSE){
 			runResponseStateCodeISR();
 		}
-		else {
-			//ERROR in STATE CODE LOGIC
-		}
 
 	//Run all interrupt routines for the slave node here
 	#elif (NODE_TYPE==SLAVE_NODE)
-		//Control code for outputting sinc pulse to master for synchronization
 		if ((pulse_counter>=-N)&&(pulse_counter<=N))
 			tempOutput.channel[SLAVE_TRANSMIT_TO_MASTER_CHANNEL] = transmitSincPulseBuffer[pulse_counter+N];
 		else
 			tempOutput.channel[SLAVE_TRANSMIT_TO_MASTER_CHANNEL] = 0;
+
 		pulse_counter++;
 		if (pulse_counter>=SLAVE_PULSE_COUNTER_MAX)
 			pulse_counter = SLAVE_PULSE_COUNTER_MIN;
-		
-		//Control code for states and receiving stuff
-		if(state==STATE_SEARCHING) {
-			runSearchingStateCodeISR();
-		}
-		else if(state==STATE_RECORDING){
-			runCalculationStateCodeISR();
-		}
-		else if(state==STATE_CALCULATION){
-			runCalculationStateCodeISR();
-		}
-		else if(state==STATE_RESPONSE){
-			//No special response for slave
-		}
-		else {
-			//ERROR in STATE CODE LOGIC
-		}
-		
 		
 	#endif
 
