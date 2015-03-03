@@ -47,8 +47,8 @@
 // virtual clock counter maximum
 #define L (1 << 12)	//4096
 
-#define SLAVE_PULSE_COUNTER_MIN (-L/2)
-#define SLAVE_PULSE_COUNTER_MAX (L/2)
+#define SLAVE_PULSE_COUNTER_MIN (-L)
+#define SLAVE_PULSE_COUNTER_MAX (L)
 
 #define CLOCK_WRAP(i) ((i) & (L - 1)) // index wrapping macro
 
@@ -186,6 +186,8 @@ void SetupTransmitModulatedSincPulseBuffer();
 void SetupReceiveBasebandSincPulseBuffer();
 void SetupReceiveTrigonometricMatchedFilters();
 void runReceivedPulseBufferDownmixing();
+void runSlaveSincPulseTimingUpdateCalcs();
+
 
 //State functions run during ISR
 void runSearchingStateCodeISR();
@@ -274,6 +276,7 @@ void main()
 				runReceviedSincPulseTimingAnalysis();
 				
 				//Now we calculate the new center clock because YOLO
+				runSlaveSincPulseTimingUpdateCalcs();
 				
 				// increment delay estimate index (now different index for fine delay estimates)
 				cde_index++;
@@ -314,9 +317,9 @@ interrupt void serialPortRcvISR()
 			vclock_counter = 0;
 			tempOutput.channel[SLAVE_TRANSMIT_SYNC_CLOCK_CHANNEL] = 32000;
 		}
-		else{
-			tempOutput.channel[SLAVE_TRANSMIT_SYNC_CLOCK_CHANNEL] = 0;
-		}
+		//else{
+		//	tempOutput.channel[SLAVE_TRANSMIT_SYNC_CLOCK_CHANNEL] = 0;
+		//}
 	#endif
 	//Extra debug test. Variable set during calculation loop
 	if(calculation_done)
@@ -353,9 +356,14 @@ interrupt void serialPortRcvISR()
 			tempOutput.channel[SLAVE_TRANSMIT_TO_MASTER_CHANNEL] = transmitSincPulseBuffer[pulse_counter+N];
 		else
 			tempOutput.channel[SLAVE_TRANSMIT_TO_MASTER_CHANNEL] = 0;
-		pulse_counter++;
 		if (pulse_counter>=SLAVE_PULSE_COUNTER_MAX)
 			pulse_counter = SLAVE_PULSE_COUNTER_MIN;
+		if ((pulse_counter+slaveNewVClk>=-N)&&(pulse_counter+slaveNewVClk)<=N)
+			tempOutput.channel[SLAVE_TRANSMIT_SYNC_CLOCK_CHANNEL] = transmitSincPulseBuffer[pulse_counter+N];
+		//else
+		//	tempOutput.channel[SLAVE_TRANSMIT_SYNC_CLOCK_CHANNEL] = 0;
+		pulse_counter++;
+
 		
 		//Control code for states and receiving stuff
 		if(state==STATE_SEARCHING) {
@@ -627,4 +635,11 @@ float sumFloatArray(float* array, short numElmts){
 		sum += array[idx];
 	}
 	return sum;
+}
+
+/**
+	Calculates the new virtual clock times based on incoming sinc pulse timing estimates.
+*/
+void runSlaveSincPulseTimingUpdateCalcs(){
+	slaveNewVClk = coarse_delay_estimate[cde_index] / 2; //This math is probably stupidly off because I need to compensate for different total clocks sometimes... maybe?
 }
