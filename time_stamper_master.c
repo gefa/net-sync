@@ -13,7 +13,7 @@
  *    - looks for modulated sinc pulse
  *    - correlates to find nearest sample
  *    - uses carrier phase to refine timestamp
- * 
+ *
  *	Current Revision: 	0.1
  *	Revision Name:		Hurr durr I'ma sheep
  *************************************************************************/
@@ -25,7 +25,7 @@
 #define MASTER_NODE 1
 #define SLAVE_NODE 	2
 
-//Node type - This changes whether setting 
+//Node type - This changes whether setting
 #define NODE_TYPE MASTER_NODE
 
 //Audio codec sample frequency
@@ -70,21 +70,15 @@
 #define CHANNEL_RIGHT 1
 
 //Define master/slave channels
-#define MASTER_TRANSMIT_CHANNEL_CLOCK_PULSE CHANNEL_RIGHT
-#define MASTER_TRANSMIT_CHANNEL_TO_SLAVE	CHANNEL_LEFT
-
-#define MASTER_RECEIVE_FROM_SLAVE_CHANNEL 	CHANNEL_LEFT
-
-#define SLAVE_TRANSMIT_TO_MASTER_CHANNEL 	CHANNEL_LEFT
-#define SLAVE_TRANSMIT_SYNC_CLOCK_CHANNEL	CHANNEL_RIGHT
-
-#define SLAVE_RECEIVE_FROM_MASTER_CHANNEL	CHANNEL_RIGHT
+#define TRANSMIT_SINC	CHANNEL_RIGHT
+#define RECEIVE_SINC	CHANNEL_LEFT
+#define TRANSMIT_CLOCK	CHANNEL_LEFT
 
 // State definitions
 #define STATE_SEARCHING 0
 #define STATE_RECORDING 1
 #define STATE_CALCULATION 2
-#define STATE_RESPONSE 3
+#define STATE_TRANSMIT 3
 
 // define PI and INVPI
 #define PI 3.14159265358979323846
@@ -110,7 +104,7 @@ float buf[M];       	// search buffer
 float matchedFilterCosine[M];			// in-phase correlation buffer
 float matchedFilterSine[M];       	// quadrature correlation buffer
 float corr_max, corr_max_s, corr_max_c; // correlation variables
-float corr_c[2*M];		
+float corr_c[2*M];
 float corr_s[2*M];
 float s[2*M];
 short corr_max_lag;
@@ -121,15 +115,17 @@ double t,x,y;				//More Indices
 float bbsinc[2*N+1];   		// baseband sinc pulse buffer
 float recbuf[2*N+2*M]; 		// recording buffer
 float yc[2*N+2*M];     		// in-phase downmixed buffer
-float ys[2*N+2*M];     		// quadrature downmixed buffer  
+float ys[2*N+2*M];     		// quadrature downmixed buffer
 short recbufindex = 0;		//
-
+/*
 //System state variables
 #if (NODE_TYPE == MASTER_NODE)
 volatile int state = STATE_SEARCHING;
 #elif (NODE_TYPE == SLAVE_NODE)
 volatile int state = STATE_SEARCHING;
 #endif
+*/
+volatile int state = STATE_SEARCHING;
 
 volatile short vclock_counter = 0; // virtual clock counter
 volatile short recbuf_start_clock = 0; // virtual clock counter for first sample in recording buffer
@@ -143,19 +139,24 @@ double phase_correction_factor;
 short max_samp = 0;
 
 //Master sinc response variables
-volatile short vir_clock_start; 
+volatile short vir_clock_start;
+volatile short CurTime = 0;
 short halfSinc;
 short transmitSincPulseBuffer[OUTPUT_BUF_SIZE];
 volatile short response_done = 0; 						//not done var for response state
 volatile short response_buf_idx = 0; 					//index for output buffer
 volatile short response_buf_idx_max = OUTPUT_BUF_SIZE;
-volatile short MasterResponseSendingHuh = 0;			//control var for starting the sending of the response from master
+volatile short amSending = 0;			//control var for starting the sending of the response from master
 volatile short ClockPulse = 0;							//Used for generating the master clock pulse output value
 volatile short calculation_done = 0;		//debug
 volatile short v_clk[3];					//debug
 
 //Slave transmit variables
 short pulse_counter = SLAVE_PULSE_COUNTER_MIN;
+
+//ISR combos
+union {Uint32 combo; short channel[2];} tempOutput;
+union {Uint32 combo; short channel[2];} tempInput;
 
 DSK6713_AIC23_CodecHandle hCodec;							// Codec handle
 DSK6713_AIC23_Config config = DSK6713_AIC23_DEFAULTCONFIG;  // Codec configuration with default settings
@@ -168,7 +169,6 @@ double sin(double);
 double cos(double);
 double atan2(double,double);
 float sumFloatArray(float*, short numElmts);
-
 
 interrupt void serialPortRcvISR(void);
 
@@ -191,8 +191,6 @@ void runReceviedSincPulseTimingAnalysis();
 
 void main()
 {
-	union {Uint32 combo; short channel[2];} temp;
-	temp.combo = 0; //Set to zero now for missed sets.
 
 	// reset coarse and fine delay estimate buffers
 	for (i=0;i<MAX_STORED_DELAYS_COARSE;i++)
@@ -205,7 +203,7 @@ void main()
 	SetupReceiveBasebandSincPulseBuffer();
 	SetupTransmitModulatedSincPulseBuffer();
 	// -------- DSK Hardware Setup --------
-	
+
 	DSK6713_init();		// Initialize the board support library, must be called first
 	DSK6713_LED_init(); // initialize LEDs
     hCodec = DSK6713_AIC23_openCodec(0, &config);	// open codec and get handle
@@ -226,7 +224,7 @@ void main()
 	IRQ_map(IRQ_EVT_RINT1,15);		// Maps an event to a physical interrupt
 	IRQ_enable(IRQ_EVT_RINT1);		// Enables the event
 	IRQ_globalEnable();				// Globally enables interrupts
-	
+
 	// -------- End DSK Hardware Setup --------
 
 	while(1)						// main loop
@@ -239,6 +237,7 @@ void main()
 			else if (state==STATE_CALCULATION) {
 				//printf wrecks the real-time operation
 				//printf("Buffer recorded: %d %f.\n",recbuf_start_clock,z);
+
 				z = 0;  // clear correlation sum
 				// -----------------------------------------------
 				// this is where we estimate the time of arrival
@@ -248,61 +247,45 @@ void main()
 				// --- Prepare for Response State ---
 				runMasterResponseSincPulseTimingControl();
 
-				// increment delay estimate index (now different index for fine delay estimates)
-				cde_index++;
-				if (cde_index>=MAX_STORED_DELAYS_COARSE)
-					cde_index = 0;
-				fde_index++;
-				if (fde_index>=MAX_STORED_DELAYS_FINE)
-					fde_index = 0;
-			
+			}
 		#elif (NODE_TYPE==SLAVE_NODE)
 			//Do nothing, we're the slave. All real calculations occur during the ISR
 		#endif
+
 
 	}
 }
 
 interrupt void serialPortRcvISR()
 {
-	union {Uint32 combo; short channel[2];} tempInput;
-	union {Uint32 combo; short channel[2];} tempOutput;
 
 	tempInput.combo = MCBSP_read(DSK6713_AIC23_DATAHANDLE);
 	tempOutput.combo = 0; //Set to zero now for missed sets.
 	// Note that right channel is in temp.channel[0]
 	// Note that left channel is in temp.channel[1]
-	
-	vclock_counter++; //Note! --- Not sure of the effects of moving the increment to the top	
+
+	vclock_counter++; //Note! --- Not sure of the effects of moving the increment to the top
 	//Clock counter wrap
 	#if (NODE_TYPE==MASTER_NODE)
 		if (vclock_counter>=(L)) {
 			vclock_counter = 0; // wrap
-			tempOutput.channel[MASTER_TRANSMIT_CHANNEL_CLOCK_PULSE] = 32000; //Left channel for debug, doesn't really do anything
+			tempOutput.channel[TRANSMIT_SINC] = 32000; //Left channel for debug, doesn't really do anything
 		}
 		else{
-			tempOutput.channel[MASTER_TRANSMIT_CHANNEL_CLOCK_PULSE] = 0; //Left channel for debug, doesn't really do anything
+			tempOutput.channel[TRANSMIT_SINC] = 0; //Left channel for debug, doesn't really do anything
 		}
-	
+
 	#elif(NODE_TYPE==SLAVE_NODE)
 		if (vclock_counter>=(L)){ //runs at 1/2x rate of master for clock pulses, might want to switch variables?
 			vclock_counter = 0;
-			tempOutput.channel[SLAVE_TRANSMIT_SYNC_CLOCK_CHANNEL] = 32000;
+			tempOutput.channel[TRANSMIT_SINC] = 32000;
 		}
 		else{
-			tempOutput.channel[SLAVE_TRANSMIT_SYNC_CLOCK_CHANNEL] = 0;
+			tempOutput.channel[TRANSMIT_SINC] = 0;
 		}
 	#endif
-	//Extra debug test. Variable set during calculation loop
-	if(calculation_done)
-	{
-		calculation_done=0;
-		tempOutput.channel[MASTER_TRANSMIT_CHANNEL_CLOCK_PULSE] = 15000;
-	}
-	// ---- Common ----- ----- ----- 
-	local_carrier_phase = ((char) vclock_counter) & 3;
 
-	
+
 	//Run all interrupt routine logic for the master node here
 	#if (NODE_TYPE==MASTER_NODE)
 		if (state==STATE_SEARCHING) {
@@ -311,28 +294,20 @@ interrupt void serialPortRcvISR()
 		else if (state==STATE_RECORDING) {
 			runRecordingStateCodeISR();
 		}
-		else if(state==STATE_CALCULATION){ 
+		else if(state==STATE_CALCULATION){
 			runCalculationStateCodeISR();
 		}
-		else if(state==STATE_RESPONSE){
+		else if(state==STATE_TRANSMIT){
 			runResponseStateCodeISR();
 		}
 
 	//Run all interrupt routines for the slave node here
 	#elif (NODE_TYPE==SLAVE_NODE)
-		if ((pulse_counter>=-N)&&(pulse_counter<=N))
-			tempOutput.channel[SLAVE_TRANSMIT_TO_MASTER_CHANNEL] = transmitSincPulseBuffer[pulse_counter+N];
-		else
-			tempOutput.channel[SLAVE_TRANSMIT_TO_MASTER_CHANNEL] = 0;
 
-		pulse_counter++;
-		if (pulse_counter>=SLAVE_PULSE_COUNTER_MAX)
-			pulse_counter = SLAVE_PULSE_COUNTER_MIN;
-		
 	#endif
 
 	//Write the output sample to the audio codec
-	MCBSP_write(DSK6713_AIC23_DATAHANDLE, tempOutput.combo); 
+	MCBSP_write(DSK6713_AIC23_DATAHANDLE, tempOutput.combo);
 
 }
 
@@ -340,7 +315,7 @@ interrupt void serialPortRcvISR()
 	Sets up the transmit buffer for the sinc pulse modulated at quarter sampling frequency
 */
 void SetupTransmitModulatedSincPulseBuffer(){
-	
+
 	for (i=-N;i<=N;i++){
 		x = i*BW;
 		t = i*0.25;
@@ -380,18 +355,19 @@ void SetupReceiveTrigonometricMatchedFilters(){
 }
 
 /**
-	
+
 */
 void runMasterResponseSincPulseTimingControl(){
 	// --- Prepare for Response State ---
+	union {Uint32 combo; short channel[2];} temp;
+	temp.combo = 0; //Set to zero now for missed sets.
+
 	response_done = 0; //not done yet
 	response_buf_idx = 0; //index for output buffer
 	//Wrap start timer around virtual clock origin.
 	vir_clock_start = CLOCK_WRAP(L - CLOCK_WRAP(coarse_delay_estimate[cde_index]) - N2); //start time  //cde_index-1 -> take most recent estimate
 	//course delay estimate wraps with respect to L, I dont think that's good?
 
-	calculation_done = 1;
-	
 	if(CLOCK_WRAP(coarse_delay_estimate[cde_index])>vclock_counter){//i dont think this triggers ever
 		temp.channel[0] = 25000;
 		MCBSP_write(DSK6713_AIC23_DATAHANDLE, temp.combo);
@@ -423,16 +399,18 @@ void runMasterResponseSincPulseTimingControl(){
 	}
 
 	while(vclock_counter != 0) ; //wait one additional tick because we've already passed previous starting point we need
-	state = STATE_RESPONSE; //set to response for the ISR to pick the appropriate path
-	while(!response_done) ; //Loop and wait here until the responding output code works
-		state = STATE_SEARCHING; // back to searching state, after responding
+
+	state = STATE_TRANSMIT; //set to response for the ISR to pick the appropriate path
+
+	while(state == STATE_TRANSMIT) ; //Loop and wait here until the responding output code works
 
 }
 
 
 void runSearchingStateCodeISR(){
+
 		// put sample in searching buffer
-	buf[bufindex] = (float) tempInput.channel[MASTER_RECEIVE_FROM_SLAVE_CHANNEL];  // right channel
+	buf[bufindex] = (float) tempInput.channel[RECEIVE_SINC];  // right channel
 
 	// increment and wrap pointer
 	bufindex++;
@@ -466,9 +444,10 @@ void runSearchingStateCodeISR(){
 
 void runRecordingStateCodeISR(){
 	// put sample in recording buffer
-	recbuf[recbufindex] = (float) tempInput.channel[MASTER_RECEIVE_FROM_SLAVE_CHANNEL];  // right channel
+	recbuf[recbufindex] = (float) tempInput.channel[RECEIVE_SINC];  // right channel
 	recbufindex++;
 	if (recbufindex>=(2*N+2*M)) {
+		CurTime = vclock_counter;
 		state = STATE_CALCULATION;  // buffer is full (stop recording)
 		recbufindex = 0; // shouldn't be necessary
 	}
@@ -481,15 +460,17 @@ void runCalculationStateCodeISR(){
 
 void runResponseStateCodeISR(){
 	if(vclock_counter==vir_clock_start){ //Okay, we've reached the appropriate wrap around point where we should start sending the dataers
-		MasterResponseSendingHuh = 1;
+		amSending = 1;
 	}
-	if(MasterResponseSendingHuh){ //write the buffered output waveform to the output file, adn increment the index counter
-		tempOutput.channel[MASTER_TRANSMIT_CHANNEL_TO_SLAVE] = transmitSincPulseBuffer[response_buf_idx];
+	if(amSending){ //write the buffered output waveform to the output file, adn increment the index counter
+		tempOutput.channel[RECEIVE_SINC] = transmitSincPulseBuffer[response_buf_idx];
 		response_buf_idx++;
 	}
 	if(response_buf_idx==response_buf_idx_max){
-		response_done = 1;		//Used to break from STATE_RESPONSE in the main while loop and move on
-		MasterResponseSendingHuh = 0;			//quits the sending part above
+		response_done = 1;		//Used to break from STATE_TRANSMIT in the main while loop and move on
+		amSending = 0;			//quits the sending part above
+		response_buf_idx = 0;
+		state=STATE_SEARCHING;
 	}
 }
 
@@ -569,10 +550,3 @@ void runReceivedPulseBufferDownmixing(){
 	}
 }
 
-float sumFloatArray(float* array, short numElmts){
-	float sum = 0.0;
-	for(short idx; idx < numElmts; idx++){
-		sum += array[idx];
-	}
-	return sum;
-}
