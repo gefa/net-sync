@@ -72,7 +72,7 @@
 
 //Define channel numbers for audio codec union variable
 #define CHANNEL_LEFT 0
-#define CHANNEL_RIGHT 1
+#define CHANNEL_RIGHT 1 
 
 //Define master/slave channels
 #define TRANSMIT_SINC	CHANNEL_RIGHT
@@ -108,19 +108,19 @@
 float buf[M];       	// search buffer
 float matchedFilterCosine[M];			// in-phase correlation buffer
 float matchedFilterSine[M];       	// quadrature correlation buffer
-float corr_max, corr_max_s, corr_max_c; // correlation variables
-float corr_c[2*M];
-float corr_s[2*M];
+float correlationMax, corr_max_s, corr_max_c; // correlation variables
+float correlatedCosine[2*M];
+float correlatedSine[2*M];
 float s[2*M];
-short corr_max_lag;
+short correlationMaxLag;
 short bufindex = 0;
 float zc,zs,z;
 short i,j,k;				// Indices
 double t,x,y;				// More Indices
 float bbsinc[2*N+1];   		// baseband sinc pulse buffer
 float recbuf[2*N+2*M]; 		// recording buffer
-float yc[2*N+2*M];     		// in-phase downmixed buffer
-float ys[2*N+2*M];     		// quadrature downmixed buffer
+float dmixedCosine[2*N+2*M];     		// in-phase downmixed buffer
+float dmixedSine[2*N+2*M];     		// quadrature downmixed buffer
 short recbufindex = 0;		//
 
 #if (NODE_TYPE == MASTER_NODE)//if master, listen to slave first and then send the sinc back
@@ -550,51 +550,51 @@ void runReceviedSincPulseTimingAnalysis(){
 	// this is where we apply the matched filter
 	// we only do this over a limited range
 	for (i=0;i<=(2*M-1);i++) {
-		corr_c[i] = 0;
-		corr_s[i] = 0;
+		correlatedCosine[i] = 0;
+		correlatedSine[i] = 0;
 		for (j=0;j<(2*N+1);j++) {
-			corr_c[i] += bbsinc[j]*yc[j+i];
-			corr_s[i] += bbsinc[j]*ys[j+i];
+			correlatedCosine[i] += bbsinc[j]*dmixedCosine[j+i];
+			correlatedSine[i] += bbsinc[j]*dmixedSine[j+i];
 		}
-		s[i] = corr_c[i]*corr_c[i]+corr_s[i]*corr_s[i];  // noncoherent correlation metric
+		s[i] = correlatedCosine[i]*correlatedCosine[i]+correlatedSine[i]*correlatedSine[i];  // noncoherent correlation metric
 	}
 
 	// now find the peak
-	corr_max = 0;
-	corr_max_lag = 0;
+	correlationMax = 0;
+	correlationMaxLag = 0;
 	for (i=0;i<=(2*M-1);i++) {
-		if (s[i]>corr_max){
-			corr_max = s[i];
-			corr_max_lag = i;
+		if (s[i]>correlationMax){
+			correlationMax = s[i];
+			correlationMaxLag = i;
 		}
 	}
-	corr_max_c = corr_c[corr_max_lag];
-	corr_max_s = corr_s[corr_max_lag];
+	corr_max_c = correlatedCosine[correlationMaxLag];
+	corr_max_s = correlatedSine[correlationMaxLag];
 
 	//printf wrecks the real-time operation
-	//printf("Max lag: %d\n",corr_max_lag);
-	//printf("Coarse delay estimate: %d.\n",recbuf_start_clock+corr_max_lag);
+	//printf("Max lag: %d\n",correlationMaxLag);
+	//printf("Coarse delay estimate: %d.\n",recbuf_start_clock+correlationMaxLag);
 
 	// store coarse delay estimates
-	coarse_delay_estimate[cde_index] = recbuf_start_clock+corr_max_lag;
+	coarse_delay_estimate[cde_index] = recbuf_start_clock+correlationMaxLag;
 
 	// fine delay estimate
 	y = (double) corr_max_s;
 	x = (double) corr_max_c;
 	phase_correction_factor = atan2(y,x)*2*INVPI; // phase
-	r = (recbuf_start_clock+corr_max_lag) & 3; // compute remainder
+	r = (recbuf_start_clock+correlationMaxLag) & 3; // compute remainder
 	if (r==0)
-		fine_delay_estimate[fde_index] = recbuf_start_clock+corr_max_lag+phase_correction_factor;
+		fine_delay_estimate[fde_index] = recbuf_start_clock+correlationMaxLag+phase_correction_factor;
 	else if (r==1)
-		fine_delay_estimate[fde_index] = recbuf_start_clock+corr_max_lag+phase_correction_factor-1;
+		fine_delay_estimate[fde_index] = recbuf_start_clock+correlationMaxLag+phase_correction_factor-1;
 	else if (r==2) {
 		if (phase_correction_factor>0)
-			fine_delay_estimate[fde_index] = recbuf_start_clock+corr_max_lag+phase_correction_factor-2;
+			fine_delay_estimate[fde_index] = recbuf_start_clock+correlationMaxLag+phase_correction_factor-2;
 		else
-			fine_delay_estimate[fde_index] = recbuf_start_clock+corr_max_lag+phase_correction_factor+2;
+			fine_delay_estimate[fde_index] = recbuf_start_clock+correlationMaxLag+phase_correction_factor+2;
 	}
 	else if (r==3)
-		fine_delay_estimate[fde_index] = recbuf_start_clock+corr_max_lag+phase_correction_factor+1;
+		fine_delay_estimate[fde_index] = recbuf_start_clock+correlationMaxLag+phase_correction_factor+1;
 	else
 		printf("ERROR");
 
@@ -605,20 +605,20 @@ void runReceivedPulseBufferDownmixing(){
 	// downmix (had problems using sin/cos here so used a trick)
 	// The trick is based on the incoming frequency per sample being (n * pi/2), so every other sample goes to zero.
 	for (i=0;i<(2*N+2*M);i+=4){
-		yc[i] = recbuf[i];
-		ys[i] = 0;
+		dmixedCosine[i] = recbuf[i];
+		dmixedSine[i] = 0;
 	}
 	for (i=1;i<(2*N+2*M);i+=4){
-		yc[i] = 0;
-		ys[i] = recbuf[i];
+		dmixedCosine[i] = 0;
+		dmixedSine[i] = recbuf[i];
 	}
 	for (i=2;i<(2*N+2*M);i+=4){
-		yc[i] = -recbuf[i];
-		ys[i] = 0;
+		dmixedCosine[i] = -recbuf[i];
+		dmixedSine[i] = 0;
 	}
 	for (i=3;i<(2*N+2*M);i+=4){
-		yc[i] = 0;
-		ys[i] = -recbuf[i];
+		dmixedCosine[i] = 0;
+		dmixedSine[i] = -recbuf[i];
 	}
 }
 
