@@ -49,7 +49,7 @@
 #if (NODE_TYPE == MASTER_NODE)
 #define L (1 << 12)	//4096
 #elif (NODE_TYPE == SLAVE_NODE)
-#define L 8000 //8192
+#define L (1<<12) //8192
 #endif
 
 #define SLAVE_PULSE_COUNTER_MIN (-(L*2))
@@ -279,10 +279,12 @@ void main()
 				//		NOTE: delay_estimate needs to be wraped in some cases!
 				short sinc_roundtrip_time = ((short)(sinc_launch/L))*L + coarse_delay_estimate[cde_index];
 				short vclock_offset = sinc_roundtrip_time / 2;					// divide by two
+
+				vclock_offset = CLOCK_WRAP(vclock_counter + vclock_offset);
 				// we might want to store sinc_roundtrip_time later
 
-				while (vclock_counter != 0)	;//wait for zero
-				vclock_counter += vclock_offset;	//correct the vclock
+				while (vclock_counter != vclock_offset)	;//wait for mster zero
+				vclock_counter = 0;	//correct the vclock
 
 				while(state == STATE_CALCULATION) ;//wait for ISR to timeout and switch state
 
@@ -365,8 +367,8 @@ interrupt void serialPortRcvISR()
 		}
 		else if(state==STATE_TRANSMIT){
 			// transmit initial sinc to master (beg for some precision)
-			amSending = 1;			//sending ready
-			vir_clock_start = 0;	// subject to change
+			vir_clock_start = L-N;	// subject to change
+
 			runResponseStateCodeISR();//this function will change state when it's done
 
 		}
@@ -496,7 +498,7 @@ void runSearchingStateCodeISR(){
 	}
 	z = zc*zc+zs*zs;
 
-	if ((z>T1)&&(local_carrier_phase==0)) {  // xxx should make sure this runs in real-time
+	if (z>T1) {  // xxx should make sure this runs in real-time
 		state = STATE_RECORDING; // enter "recording" state (takes effect in next interrupt)
 		recbuf_start_clock = vclock_counter - M; // virtual clock tick at at start of recording buffer
 												 // (might be negative but doesn't matter)
