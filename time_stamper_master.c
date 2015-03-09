@@ -27,7 +27,7 @@
 
 
 //Node type - This changes whether setting 
-#define NODE_TYPE MASTER_NODE
+#define NODE_TYPE SLAVE_NODE
 
 //Audio codec sample frequency
 #define DSK_SAMPLE_FREQ DSK6713_AIC23_FREQ_8KHZ
@@ -46,7 +46,11 @@
 #define N2 ((N<<1)+1) //1025
 
 // virtual clock counter maximum
+#if (NODE_TYPE == MASTER_NODE)
 #define L (1 << 12)	//4096
+#elif (NODE_TYPE == SLAVE_NODE)
+#define L 8000 //8192
+#endif
 
 #define SLAVE_PULSE_COUNTER_MIN (-(L*2))
 #define SLAVE_PULSE_COUNTER_MAX (L*2)
@@ -111,22 +115,19 @@ float s[2*M];
 short corr_max_lag;
 short bufindex = 0;
 float zc,zs,z;
-short i,j,k;				//Indices
-double t,x,y;				//More Indices
+short i,j,k;				// Indices
+double t,x,y;				// More Indices
 float bbsinc[2*N+1];   		// baseband sinc pulse buffer
 float recbuf[2*N+2*M]; 		// recording buffer
 float yc[2*N+2*M];     		// in-phase downmixed buffer
 float ys[2*N+2*M];     		// quadrature downmixed buffer
 short recbufindex = 0;		//
-/*
-//System state variables
-#if (NODE_TYPE == MASTER_NODE)
+
+#if (NODE_TYPE == MASTER_NODE)//if master, listen to slave first and then send the sinc back
 volatile int state = STATE_SEARCHING;
-#elif (NODE_TYPE == SLAVE_NODE)
-volatile int state = STATE_SEARCHING;
+#elif (NODE_TYPE == SLAVE_NODE)//if slave, send sinc and then wait for master's response
+volatile int state = STATE_TRANSMIT;
 #endif
-*/
-volatile int state = STATE_SEARCHING;
 
 volatile short vclock_counter = 0; // virtual clock counter
 volatile short recbuf_start_clock = 0; // virtual clock counter for first sample in recording buffer
@@ -148,6 +149,7 @@ volatile short response_done = 0; 						//not done var for response state
 volatile short response_buf_idx = 0; 					//index for output buffer
 volatile short response_buf_idx_max = OUTPUT_BUF_SIZE;
 volatile short amSending = 0;			//control var for starting the sending of the response from master
+volatile short sinc_launch = 0;
 volatile short ClockPulse = 0;							//Used for generating the master clock pulse output value
 volatile short calculation_done = 0;		//debug
 volatile short v_clk[3];					//debug
@@ -155,7 +157,7 @@ volatile short v_clk[3];					//debug
 //Slave transmit variables
 short pulse_counter = SLAVE_PULSE_COUNTER_MIN;
 
-//ISR combos
+// ISR combos
 union {Uint32 combo; short channel[2];} tempOutput;
 union {Uint32 combo; short channel[2];} tempInput;
 
@@ -248,6 +250,7 @@ void main()
 				runReceivedPulseBufferDownmixing();
 				runReceviedSincPulseTimingAnalysis();
 				// --- Prepare for Response State ---
+
 				runMasterResponseSincPulseTimingControl();
 
 			}
@@ -259,12 +262,31 @@ void main()
 				
 			}
 			else if (state==STATE_CALCULATION){
-				
+				//printf wrecks the real-time operation
+				//printf("Buffer recorded: %d %f.\n",recbuf_start_clock,z);
+
+				z = 0;  // clear correlation sum
+				// -----------------------------------------------
+				// this is where we estimate the time of arrival
+				// -----------------------------------------------
 				runReceivedPulseBufferDownmixing();
 				runReceviedSincPulseTimingAnalysis();
+				// --- Prepare for Response State ---
 				
 				//Now we calculate the new center clock because YOLO
-				//runSlaveSincPulseTimingUpdateCalcs();
+
+				//								whole # of clock overflows + delay_estimate
+				//		NOTE: delay_estimate needs to be wraped in some cases!
+				short sinc_roundtrip_time = ((short)(sinc_launch/L))*L + coarse_delay_estimate[cde_index];
+				short vclock_offset = sinc_roundtrip_time / 2;					// divide by two
+				// we might want to store sinc_roundtrip_time later
+
+				while (vclock_counter != 0)	;//wait for zero
+				vclock_counter += vclock_offset;	//correct the vclock
+
+				while(state == STATE_CALCULATION) ;//wait for ISR to timeout and switch state
+
+				// done, after 3 vitual clock overflows, ISR will timeout and go to STATE_TRANSMITTING
 
 			}
 			
@@ -302,6 +324,13 @@ interrupt void serialPortRcvISR()
 			tempOutput.channel[TRANSMIT_SINC] = 0;
 		}
 
+		// update sinc start virtual clock
+		sinc_launch++;
+		if (sinc_launch>=3*L) {//x*L, x dictates the timeout, 3 should be enough
+			sinc_launch = 0; //
+			state=STATE_TRANSMIT;//timeout reached, no sinc reflected from master, send sinc again
+		}
+
 
 	#endif
 
@@ -335,7 +364,11 @@ interrupt void serialPortRcvISR()
 			runCalculationStateCodeISR();
 		}
 		else if(state==STATE_TRANSMIT){
-			//No special response for slave
+			// transmit initial sinc to master (beg for some precision)
+			amSending = 1;			//sending ready
+			vir_clock_start = 0;	// subject to change
+			runResponseStateCodeISR();//this function will change state when it's done
+
 		}
 		else {
 			//ERROR in STATE CODE LOGIC
@@ -498,13 +531,13 @@ void runCalculationStateCodeISR(){
 void runResponseStateCodeISR(){
 	if(vclock_counter==vir_clock_start){ //Okay, we've reached the appropriate wrap around point where we should start sending the dataers
 		amSending = 1;
+		sinc_launch = 0;//center outgoing tick at virtual tick
 	}
 	if(amSending){ //write the buffered output waveform to the output file, adn increment the index counter
 		tempOutput.channel[RECEIVE_SINC] = transmitSincPulseBuffer[response_buf_idx];
 		response_buf_idx++;
 	}
 	if(response_buf_idx==response_buf_idx_max){
-		response_done = 1;		//Used to break from STATE_TRANSMIT in the main while loop and move on
 		amSending = 0;			//quits the sending part above
 		response_buf_idx = 0;
 		state=STATE_SEARCHING;
