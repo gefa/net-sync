@@ -72,7 +72,7 @@
 
 //Define channel numbers for audio codec union variable
 #define CHANNEL_LEFT 0
-#define CHANNEL_RIGHT 1 
+#define CHANNEL_RIGHT 1
 
 //Define master/slave channels
 #define TRANSMIT_SINC	CHANNEL_RIGHT
@@ -108,19 +108,19 @@
 float buf[M];       	// search buffer
 float matchedFilterCosine[M];			// in-phase correlation buffer
 float matchedFilterSine[M];       	// quadrature correlation buffer
-float correlationMax, corr_max_s, corr_max_c; // correlation variables
-float correlatedCosine[2*M];
-float correlatedSine[2*M];
+float corr_max, corr_max_s, corr_max_c; // correlation variables
+float corr_c[2*M];
+float corr_s[2*M];
 float s[2*M];
-short correlationMaxLag;
+short corr_max_lag;
 short bufindex = 0;
 float zc,zs,z;
 short i,j,k;				// Indices
 double t,x,y;				// More Indices
 float bbsinc[2*N+1];   		// baseband sinc pulse buffer
 float recbuf[2*N+2*M]; 		// recording buffer
-float dmixedCosine[2*N+2*M];     		// in-phase downmixed buffer
-float dmixedSine[2*N+2*M];     		// quadrature downmixed buffer
+float yc[2*N+2*M];     		// in-phase downmixed buffer
+float ys[2*N+2*M];     		// quadrature downmixed buffer
 short recbufindex = 0;		//
 
 #if (NODE_TYPE == MASTER_NODE)//if master, listen to slave first and then send the sinc back
@@ -150,6 +150,8 @@ volatile short response_buf_idx = 0; 					//index for output buffer
 volatile short response_buf_idx_max = OUTPUT_BUF_SIZE;
 volatile short amSending = 0;			//control var for starting the sending of the response from master
 volatile short sinc_launch = 0;
+volatile short sinc_roundtrip_time ;
+volatile short vclock_offset ;
 volatile short ClockPulse = 0;							//Used for generating the master clock pulse output value
 volatile short calculation_done = 0;		//debug
 volatile short v_clk[3];					//debug
@@ -160,6 +162,7 @@ short pulse_counter = SLAVE_PULSE_COUNTER_MIN;
 // ISR combos
 union {Uint32 combo; short channel[2];} tempOutput;
 union {Uint32 combo; short channel[2];} tempInput;
+union {Uint32 combo; short channel[2];} debugOutput;
 
 DSK6713_AIC23_CodecHandle hCodec;							// Codec handle
 DSK6713_AIC23_Config config = DSK6713_AIC23_DEFAULTCONFIG;  // Codec configuration with default settings
@@ -275,19 +278,30 @@ void main()
 				
 				//Now we calculate the new center clock because YOLO
 
+				//debug, signal that we received the sinc
+				//debugOutput.channel[TRANSMIT_SINC] = 15000;
+				//MCBSP_write(DSK6713_AIC23_DATAHANDLE, debugOutput.combo);
+
 				//								whole # of clock overflows + delay_estimate
 				//		NOTE: delay_estimate needs to be wraped in some cases!
 				short sinc_roundtrip_time = ((short)(sinc_launch/L))*L + coarse_delay_estimate[cde_index];
-				short vclock_offset = sinc_roundtrip_time / 2;					// divide by two
+				//sinc_roundtrip_time = sinc_launch;
+				vclock_offset = sinc_roundtrip_time / 2;					// divide by two
 
-				vclock_offset = CLOCK_WRAP(vclock_counter + vclock_offset);
+				vclock_offset = CLOCK_WRAP(vclock_offset);
 				// we might want to store sinc_roundtrip_time later
 
 				while (vclock_counter != vclock_offset)	;//wait for mster zero
-				vclock_counter = 0;	//correct the vclock
+				vclock_counter = L;	//correct the vclock
 
-				while(state == STATE_CALCULATION) ;//wait for ISR to timeout and switch state
-
+				while(state == STATE_CALCULATION){//wait for ISR to timeout and switch state
+//					debugOutput.channel[TRANSMIT_SINC] = sinc_roundtrip_time;
+//					debugOutput.channel[0] = 0;
+//					MCBSP_write(DSK6713_AIC23_DATAHANDLE, debugOutput.combo);
+//					debugOutput.channel[TRANSMIT_SINC] = 0;
+//					//printf("recorded: %d \n",sinc_launch);
+//					MCBSP_write(DSK6713_AIC23_DATAHANDLE, debugOutput.combo);
+				}
 				// done, after 3 vitual clock overflows, ISR will timeout and go to STATE_TRANSMITTING
 
 			}
@@ -328,7 +342,7 @@ interrupt void serialPortRcvISR()
 
 		// update sinc start virtual clock
 		sinc_launch++;
-		if (sinc_launch>=3*L) {//x*L, x dictates the timeout, 3 should be enough
+		if (sinc_launch>=5*L) {//x*L, x dictates the timeout, 3 should be enough
 			sinc_launch = 0; //
 			state=STATE_TRANSMIT;//timeout reached, no sinc reflected from master, send sinc again
 		}
@@ -550,51 +564,51 @@ void runReceviedSincPulseTimingAnalysis(){
 	// this is where we apply the matched filter
 	// we only do this over a limited range
 	for (i=0;i<=(2*M-1);i++) {
-		correlatedCosine[i] = 0;
-		correlatedSine[i] = 0;
+		corr_c[i] = 0;
+		corr_s[i] = 0;
 		for (j=0;j<(2*N+1);j++) {
-			correlatedCosine[i] += bbsinc[j]*dmixedCosine[j+i];
-			correlatedSine[i] += bbsinc[j]*dmixedSine[j+i];
+			corr_c[i] += bbsinc[j]*yc[j+i];
+			corr_s[i] += bbsinc[j]*ys[j+i];
 		}
-		s[i] = correlatedCosine[i]*correlatedCosine[i]+correlatedSine[i]*correlatedSine[i];  // noncoherent correlation metric
+		s[i] = corr_c[i]*corr_c[i]+corr_s[i]*corr_s[i];  // noncoherent correlation metric
 	}
 
 	// now find the peak
-	correlationMax = 0;
-	correlationMaxLag = 0;
+	corr_max = 0;
+	corr_max_lag = 0;
 	for (i=0;i<=(2*M-1);i++) {
-		if (s[i]>correlationMax){
-			correlationMax = s[i];
-			correlationMaxLag = i;
+		if (s[i]>corr_max){
+			corr_max = s[i];
+			corr_max_lag = i;
 		}
 	}
-	corr_max_c = correlatedCosine[correlationMaxLag];
-	corr_max_s = correlatedSine[correlationMaxLag];
+	corr_max_c = corr_c[corr_max_lag];
+	corr_max_s = corr_s[corr_max_lag];
 
 	//printf wrecks the real-time operation
-	//printf("Max lag: %d\n",correlationMaxLag);
-	//printf("Coarse delay estimate: %d.\n",recbuf_start_clock+correlationMaxLag);
+	//printf("Max lag: %d\n",corr_max_lag);
+	//printf("Coarse delay estimate: %d.\n",recbuf_start_clock+corr_max_lag);
 
 	// store coarse delay estimates
-	coarse_delay_estimate[cde_index] = recbuf_start_clock+correlationMaxLag;
+	coarse_delay_estimate[cde_index] = recbuf_start_clock+corr_max_lag;
 
 	// fine delay estimate
 	y = (double) corr_max_s;
 	x = (double) corr_max_c;
 	phase_correction_factor = atan2(y,x)*2*INVPI; // phase
-	r = (recbuf_start_clock+correlationMaxLag) & 3; // compute remainder
+	r = (recbuf_start_clock+corr_max_lag) & 3; // compute remainder
 	if (r==0)
-		fine_delay_estimate[fde_index] = recbuf_start_clock+correlationMaxLag+phase_correction_factor;
+		fine_delay_estimate[fde_index] = recbuf_start_clock+corr_max_lag+phase_correction_factor;
 	else if (r==1)
-		fine_delay_estimate[fde_index] = recbuf_start_clock+correlationMaxLag+phase_correction_factor-1;
+		fine_delay_estimate[fde_index] = recbuf_start_clock+corr_max_lag+phase_correction_factor-1;
 	else if (r==2) {
 		if (phase_correction_factor>0)
-			fine_delay_estimate[fde_index] = recbuf_start_clock+correlationMaxLag+phase_correction_factor-2;
+			fine_delay_estimate[fde_index] = recbuf_start_clock+corr_max_lag+phase_correction_factor-2;
 		else
-			fine_delay_estimate[fde_index] = recbuf_start_clock+correlationMaxLag+phase_correction_factor+2;
+			fine_delay_estimate[fde_index] = recbuf_start_clock+corr_max_lag+phase_correction_factor+2;
 	}
 	else if (r==3)
-		fine_delay_estimate[fde_index] = recbuf_start_clock+correlationMaxLag+phase_correction_factor+1;
+		fine_delay_estimate[fde_index] = recbuf_start_clock+corr_max_lag+phase_correction_factor+1;
 	else
 		printf("ERROR");
 
@@ -605,20 +619,20 @@ void runReceivedPulseBufferDownmixing(){
 	// downmix (had problems using sin/cos here so used a trick)
 	// The trick is based on the incoming frequency per sample being (n * pi/2), so every other sample goes to zero.
 	for (i=0;i<(2*N+2*M);i+=4){
-		dmixedCosine[i] = recbuf[i];
-		dmixedSine[i] = 0;
+		yc[i] = recbuf[i];
+		ys[i] = 0;
 	}
 	for (i=1;i<(2*N+2*M);i+=4){
-		dmixedCosine[i] = 0;
-		dmixedSine[i] = recbuf[i];
+		yc[i] = 0;
+		ys[i] = recbuf[i];
 	}
 	for (i=2;i<(2*N+2*M);i+=4){
-		dmixedCosine[i] = -recbuf[i];
-		dmixedSine[i] = 0;
+		yc[i] = -recbuf[i];
+		ys[i] = 0;
 	}
 	for (i=3;i<(2*N+2*M);i+=4){
-		dmixedCosine[i] = 0;
-		dmixedSine[i] = -recbuf[i];
+		yc[i] = 0;
+		ys[i] = -recbuf[i];
 	}
 }
 
