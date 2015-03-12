@@ -47,15 +47,15 @@
 
 // virtual clock counter maximum
 #if (NODE_TYPE == MASTER_NODE)
-#define L (1 << 12)	//4096
+#define VCLK_MAX (1<<12)	//4096
 #elif (NODE_TYPE == SLAVE_NODE)
-#define L (1<<12) //8192
+#define VCLK_MAX (1<<12) //4096
 #endif
 
-#define SLAVE_PULSE_COUNTER_MIN (-(L*2))
-#define SLAVE_PULSE_COUNTER_MAX (L*2)
+#define SLAVE_PULSE_COUNTER_MIN (-(VCLK_MAX*2))
+#define SLAVE_PULSE_COUNTER_MAX (VCLK_MAX*2)
 
-#define CLOCK_WRAP(i) ((i) & (L - 1)) // index wrapping macro
+#define CLOCK_WRAP(i) ((i) & (VCLK_MAX - 1)) // index wrapping macro
 
 // max lag for computing correlations
 #define MAXLAG 200
@@ -114,13 +114,13 @@ float corr_s[2*M];
 float s[2*M];
 short corr_max_lag;
 short bufindex = 0;
-float zc,zs,z;
+float corrSumCosine,corrSumSine,corrSumIncoherent;
 short i,j,k;				// Indices
 double t,x,y;				// More Indices
 float bbsinc[2*N+1];   		// baseband sinc pulse buffer
 float recbuf[2*N+2*M]; 		// recording buffer
-float yc[2*N+2*M];     		// in-phase downmixed buffer
-float ys[2*N+2*M];     		// quadrature downmixed buffer
+float downMixedCosine[2*N+2*M];     		// in-phase downmixed buffer
+float downMixedSine[2*N+2*M];     		// quadrature downmixed buffer
 short recbufindex = 0;		//
 
 #if (NODE_TYPE == MASTER_NODE)//if master, listen to slave first and then send the sinc back
@@ -244,9 +244,9 @@ void main()
 			}
 			else if (state==STATE_CALCULATION) {
 				//printf wrecks the real-time operation
-				//printf("Buffer recorded: %d %f.\n",recbuf_start_clock,z);
+				//printf("Buffer recorded: %d %f.\n",recbuf_start_clock,corrSumIncoherent);
 
-				z = 0;  // clear correlation sum
+				corrSumIncoherent = 0;  // clear correlation sum
 				// -----------------------------------------------
 				// this is where we estimate the time of arrival
 				// -----------------------------------------------
@@ -266,9 +266,9 @@ void main()
 			}
 			else if (state==STATE_CALCULATION){
 				//printf wrecks the real-time operation
-				//printf("Buffer recorded: %d %f.\n",recbuf_start_clock,z);
+				//printf("Buffer recorded: %d %f.\n",recbuf_start_clock,corrSumIncoherent);
 
-				z = 0;  // clear correlation sum
+				corrSumIncoherent = 0;  // clear correlation sum
 				// -----------------------------------------------
 				// this is where we estimate the time of arrival
 				// -----------------------------------------------
@@ -284,7 +284,7 @@ void main()
 
 				//								whole # of clock overflows + delay_estimate
 				//		NOTE: delay_estimate needs to be wraped in some cases!
-				short sinc_roundtrip_time = ((short)(sinc_launch/L))*L + coarse_delay_estimate[cde_index];
+				short sinc_roundtrip_time = ((short)(sinc_launch/VCLK_MAX))*VCLK_MAX + coarse_delay_estimate[cde_index];
 				//sinc_roundtrip_time = sinc_launch;
 				vclock_offset = sinc_roundtrip_time / 2;					// divide by two
 
@@ -292,7 +292,7 @@ void main()
 				// we might want to store sinc_roundtrip_time later
 
 				while (vclock_counter != vclock_offset)	;//wait for mster zero
-				vclock_counter = L;	//correct the vclock
+				vclock_counter = VCLK_MAX;	//correct the vclock
 
 				while(state == STATE_CALCULATION){//wait for ISR to timeout and switch state
 //					debugOutput.channel[TRANSMIT_SINC] = sinc_roundtrip_time;
@@ -323,7 +323,7 @@ interrupt void serialPortRcvISR()
 	vclock_counter++; //Note! --- Not sure of the effects of moving the increment to the top
 	//Clock counter wrap
 	#if (NODE_TYPE==MASTER_NODE)
-		if (vclock_counter>=(L)) {
+		if (vclock_counter>=(VCLK_MAX)) {
 			vclock_counter = 0; // wrap
 			tempOutput.channel[TRANSMIT_SINC] = 32000; //Left channel for debug, doesn't really do anything
 		}
@@ -332,7 +332,7 @@ interrupt void serialPortRcvISR()
 		}
 
 	#elif(NODE_TYPE==SLAVE_NODE)
-		if (vclock_counter>=(L)){ //runs at 1/2x rate of master for clock pulses, might want to switch variables?
+		if (vclock_counter>=(VCLK_MAX)){ //runs at 1/2x rate of master for clock pulses, might want to switch variables?
 			vclock_counter = 0;
 			tempOutput.channel[TRANSMIT_SINC] = 32000;
 		}
@@ -342,7 +342,7 @@ interrupt void serialPortRcvISR()
 
 		// update sinc start virtual clock
 		sinc_launch++;
-		if (sinc_launch>=5*L) {//x*L, x dictates the timeout, 3 should be enough
+		if (sinc_launch>=5*VCLK_MAX) {//x*VCLK_MAX, x dictates the timeout, 3 should be enough
 			sinc_launch = 0; //
 			state=STATE_TRANSMIT;//timeout reached, no sinc reflected from master, send sinc again
 		}
@@ -381,7 +381,7 @@ interrupt void serialPortRcvISR()
 		}
 		else if(state==STATE_TRANSMIT){
 			// transmit initial sinc to master (beg for some precision)
-			vir_clock_start = L-N;	// subject to change
+			vir_clock_start = VCLK_MAX-N;	// subject to change
 
 			runResponseStateCodeISR();//this function will change state when it's done
 
@@ -451,8 +451,8 @@ void runMasterResponseSincPulseTimingControl(){
 	response_done = 0; //not done yet
 	response_buf_idx = 0; //index for output buffer
 	//Wrap start timer around virtual clock origin.
-	vir_clock_start = CLOCK_WRAP(L - CLOCK_WRAP(coarse_delay_estimate[cde_index]) - N2); //start time  //cde_index-1 -> take most recent estimate
-	//course delay estimate wraps with respect to L, I dont think that's good?
+	vir_clock_start = CLOCK_WRAP(VCLK_MAX - CLOCK_WRAP(coarse_delay_estimate[cde_index]) - N2); //start time  //cde_index-1 -> take most recent estimate
+	//course delay estimate wraps with respect to VCLK_MAX, I dont think that's good?
 
 	if(CLOCK_WRAP(coarse_delay_estimate[cde_index])>vclock_counter){//i dont think this triggers ever
 		temp.channel[0] = 25000;
@@ -461,7 +461,7 @@ void runMasterResponseSincPulseTimingControl(){
 		if(vclock_counter==0){
 			v_clk[0]=666;
 			v_clk[0]=vclock_counter;
-			while(vclock_counter != (L-1)) ;
+			while(vclock_counter != (VCLK_MAX-1)) ;
 		}else
 			while(vclock_counter != 0) ;
 	}
@@ -473,8 +473,8 @@ void runMasterResponseSincPulseTimingControl(){
 		if(vclock_counter==0){
 				v_clk[0]=666;
 			v_clk[1]=vclock_counter;
-			while(vclock_counter != (L-1)) ;
-			while(vclock_counter != (L-1)) ;
+			while(vclock_counter != (VCLK_MAX-1)) ;
+			while(vclock_counter != (VCLK_MAX-1)) ;
 
 
 		}
@@ -504,15 +504,15 @@ void runSearchingStateCodeISR(){
 		bufindex = 0;
 
 	// compute incoherent correlation
-	zc = 0;
-	zs = 0;
+	corrSumCosine = 0;
+	corrSumSine = 0;
 	for(i=0;i<M;i++) {
-		zc+= matchedFilterCosine[i]*buf[i];
-		zs+= matchedFilterSine[i]*buf[i];
+		corrSumCosine+= matchedFilterCosine[i]*buf[i];
+		corrSumSine+= matchedFilterSine[i]*buf[i];
 	}
-	z = zc*zc+zs*zs;
+	corrSumIncoherent = corrSumCosine*corrSumCosine+corrSumSine*corrSumSine;
 
-	if (z>T1) {  // xxx should make sure this runs in real-time
+	if (corrSumIncoherent>T1) {  // xxx should make sure this runs in real-time
 		state = STATE_RECORDING; // enter "recording" state (takes effect in next interrupt)
 		recbuf_start_clock = vclock_counter - M; // virtual clock tick at at start of recording buffer
 												 // (might be negative but doesn't matter)
@@ -567,8 +567,8 @@ void runReceviedSincPulseTimingAnalysis(){
 		corr_c[i] = 0;
 		corr_s[i] = 0;
 		for (j=0;j<(2*N+1);j++) {
-			corr_c[i] += bbsinc[j]*yc[j+i];
-			corr_s[i] += bbsinc[j]*ys[j+i];
+			corr_c[i] += bbsinc[j]*downMixedCosine[j+i];
+			corr_s[i] += bbsinc[j]*downMixedSine[j+i];
 		}
 		s[i] = corr_c[i]*corr_c[i]+corr_s[i]*corr_s[i];  // noncoherent correlation metric
 	}
@@ -619,20 +619,20 @@ void runReceivedPulseBufferDownmixing(){
 	// downmix (had problems using sin/cos here so used a trick)
 	// The trick is based on the incoming frequency per sample being (n * pi/2), so every other sample goes to zero.
 	for (i=0;i<(2*N+2*M);i+=4){
-		yc[i] = recbuf[i];
-		ys[i] = 0;
+		downMixedCosine[i] = recbuf[i];
+		downMixedSine[i] = 0;
 	}
 	for (i=1;i<(2*N+2*M);i+=4){
-		yc[i] = 0;
-		ys[i] = recbuf[i];
+		downMixedCosine[i] = 0;
+		downMixedSine[i] = recbuf[i];
 	}
 	for (i=2;i<(2*N+2*M);i+=4){
-		yc[i] = -recbuf[i];
-		ys[i] = 0;
+		downMixedCosine[i] = -recbuf[i];
+		downMixedSine[i] = 0;
 	}
 	for (i=3;i<(2*N+2*M);i+=4){
-		yc[i] = 0;
-		ys[i] = -recbuf[i];
+		downMixedCosine[i] = 0;
+		downMixedSine[i] = -recbuf[i];
 	}
 }
 
@@ -655,3 +655,13 @@ void runSlaveSincPulseTimingUpdateCalcs(){
 	slaveNewVClk = coarse_delay_estimate[cde_index] / 2; //This math is probably stupidly off because I need to compensate for different total clocks sometimes... maybe?
 }
 */
+
+
+/**
+
+*/
+short isSincInSameWindowHuh(short curClock, short delayEstimate){
+	return curClock > delayEstimate; //If its not greater, then it has already wrapped around the 0 tick, and we are currently in the next window.
+}
+
+
