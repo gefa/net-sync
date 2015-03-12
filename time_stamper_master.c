@@ -75,9 +75,9 @@
 #define CHANNEL_RIGHT 1
 
 //Define master/slave channels
-#define TRANSMIT_SINC	CHANNEL_RIGHT
+#define TRANSMIT_SINC	CHANNEL_LEFT
 #define RECEIVE_SINC	CHANNEL_LEFT
-#define TRANSMIT_CLOCK	CHANNEL_LEFT
+#define TRANSMIT_CLOCK	CHANNEL_RIGHT
 
 // State definitions
 #define STATE_SEARCHING 0
@@ -174,7 +174,7 @@ DSK6713_AIC23_Config config = DSK6713_AIC23_DEFAULTCONFIG;  // Codec configurati
 double sin(double);
 double cos(double);
 double atan2(double,double);
-float sumFloatArray(float*, short numElmts);
+//float sumFloatArray(float*, short numElmts);
 
 interrupt void serialPortRcvISR(void);
 
@@ -183,7 +183,7 @@ void SetupTransmitModulatedSincPulseBuffer();
 void SetupReceiveBasebandSincPulseBuffer();
 void SetupReceiveTrigonometricMatchedFilters();
 void runReceivedPulseBufferDownmixing();
-void runSlaveSincPulseTimingUpdateCalcs();
+//void runSlaveSincPulseTimingUpdateCalcs();
 
 
 //State functions run during ISR
@@ -278,21 +278,24 @@ void main()
 				
 				//Now we calculate the new center clock because YOLO
 
-				//debug, signal that we received the sinc
-				//debugOutput.channel[TRANSMIT_SINC] = 15000;
-				//MCBSP_write(DSK6713_AIC23_DATAHANDLE, debugOutput.combo);
+				debugOutput.channel[TRANSMIT_CLOCK] = 15000;
+				debugOutput.channel[0] = 0;
+				MCBSP_write(DSK6713_AIC23_DATAHANDLE, debugOutput.combo);
 
-				//								whole # of clock overflows + delay_estimate
-				//		NOTE: delay_estimate needs to be wraped in some cases!
-				short sinc_roundtrip_time = ((short)(sinc_launch/L))*L + coarse_delay_estimate[cde_index];
-				//sinc_roundtrip_time = sinc_launch;
-				vclock_offset = sinc_roundtrip_time / 2;					// divide by two
+				//runMasterResponseSincPulseTimingControl();
 
-				vclock_offset = CLOCK_WRAP(vclock_offset);
-				// we might want to store sinc_roundtrip_time later
 
-				while (vclock_counter != vclock_offset)	;//wait for mster zero
-				vclock_counter = L;	//correct the vclock
+//				//								whole # of clock overflows + delay_estimate
+//				//		NOTE: delay_estimate needs to be wraped in some cases!
+//				short sinc_roundtrip_time = ((short)(sinc_launch/L))*L + coarse_delay_estimate[cde_index];
+//				//sinc_roundtrip_time = sinc_launch;
+//				vclock_offset = sinc_roundtrip_time / 2;					// divide by two
+//
+//				vclock_offset = CLOCK_WRAP(vclock_offset);
+//				// we might want to store sinc_roundtrip_time later
+//
+//				while (vclock_counter != vclock_offset)	;//wait for mster zero
+//				vclock_counter = L;	//correct the vclock
 
 				while(state == STATE_CALCULATION){//wait for ISR to timeout and switch state
 //					debugOutput.channel[TRANSMIT_SINC] = sinc_roundtrip_time;
@@ -325,19 +328,19 @@ interrupt void serialPortRcvISR()
 	#if (NODE_TYPE==MASTER_NODE)
 		if (vclock_counter>=(L)) {
 			vclock_counter = 0; // wrap
-			tempOutput.channel[TRANSMIT_SINC] = 32000; //Left channel for debug, doesn't really do anything
+			tempOutput.channel[TRANSMIT_CLOCK] = 32000; //Left channel for debug, doesn't really do anything
 		}
 		else{
-			tempOutput.channel[TRANSMIT_SINC] = 0; //Left channel for debug, doesn't really do anything
+			tempOutput.channel[TRANSMIT_CLOCK] = 0; //Left channel for debug, doesn't really do anything
 		}
 
 	#elif(NODE_TYPE==SLAVE_NODE)
 		if (vclock_counter>=(L)){ //runs at 1/2x rate of master for clock pulses, might want to switch variables?
 			vclock_counter = 0;
-			tempOutput.channel[TRANSMIT_SINC] = 32000;
+			tempOutput.channel[TRANSMIT_CLOCK] = 32000;
 		}
 		else{
-			tempOutput.channel[TRANSMIT_SINC] = 0;
+			tempOutput.channel[TRANSMIT_CLOCK] = 0;
 		}
 
 		// update sinc start virtual clock
@@ -450,6 +453,8 @@ void runMasterResponseSincPulseTimingControl(){
 
 	response_done = 0; //not done yet
 	response_buf_idx = 0; //index for output buffer
+
+#if (NODE_TYPE==MASTER_NODE)
 	//Wrap start timer around virtual clock origin.
 	vir_clock_start = CLOCK_WRAP(L - CLOCK_WRAP(coarse_delay_estimate[cde_index]) - N2); //start time  //cde_index-1 -> take most recent estimate
 	//course delay estimate wraps with respect to L, I dont think that's good?
@@ -489,7 +494,18 @@ void runMasterResponseSincPulseTimingControl(){
 	state = STATE_TRANSMIT; //set to response for the ISR to pick the appropriate path
 
 	while(state == STATE_TRANSMIT) ; //Loop and wait here until the responding output code works
+#elif (NODE_TYPE==SLAVE_NODE)
 
+	vir_clock_start = CLOCK_WRAP(CLOCK_WRAP(coarse_delay_estimate[cde_index])+ N); //start time  //cde_index-1 -> take most recent estimate
+
+	while(vclock_counter != vir_clock_start) ;
+
+	temp.channel[TRANSMIT_CLOCK] = -15000;
+	MCBSP_write(DSK6713_AIC23_DATAHANDLE, temp.combo);
+
+
+
+#endif
 }
 
 
@@ -550,7 +566,7 @@ void runResponseStateCodeISR(){
 		sinc_launch = 0;//center outgoing tick at virtual tick
 	}
 	if(amSending){ //write the buffered output waveform to the output file, adn increment the index counter
-		tempOutput.channel[RECEIVE_SINC] = transmitSincPulseBuffer[response_buf_idx];
+		tempOutput.channel[TRANSMIT_SINC] = transmitSincPulseBuffer[response_buf_idx];
 		response_buf_idx++;
 	}
 	if(response_buf_idx==response_buf_idx_max){
