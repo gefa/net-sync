@@ -89,11 +89,17 @@
 #define PI 3.14159265358979323846
 #define INVPI 0.318309886183791
 
+//gpio registers
+#define GPIO_ENABLE_ADDRESS		0x01B00000
+#define GPIO_DIRECTION_ADDRESS	0x01B00004
+#define GPIO_VALUE_ADDRESS		0x01B00008
+
 #include <stdio.h>
 #include <c6x.h>
 #include <csl.h>
 #include <csl_mcbsp.h>
 #include <csl_irq.h>
+#include <csl_gpio.h>
 #include <math.h>
 
 #include "dsk6713.h"
@@ -166,6 +172,8 @@ union {Uint32 combo; short channel[2];} debugOutput;
 
 DSK6713_AIC23_CodecHandle hCodec;							// Codec handle
 DSK6713_AIC23_Config config = DSK6713_AIC23_DEFAULTCONFIG;  // Codec configuration with default settings
+
+GPIO_Handle    hGpio; /* GPIO handle */
 // ------------------------------------------
 // end of variables
 // ------------------------------------------
@@ -197,6 +205,10 @@ void runResponseStateCodeISR();
 void runMasterResponseSincPulseTimingControl();
 void runReceviedSincPulseTimingAnalysis();
 
+//debug gpio function
+void gpioInit();
+viod gpioToggle();
+
 void main()
 {
 
@@ -225,6 +237,8 @@ void main()
 
 	// set codec sampling frequency
 	DSK6713_AIC23_setFreq(hCodec, DSK_SAMPLE_FREQ);
+
+	gpioInit();
 
 	// interrupt setup
 	IRQ_globalDisable();			// Globally disables interrupts
@@ -276,14 +290,13 @@ void main()
 				runReceviedSincPulseTimingAnalysis();
 				// --- Prepare for Response State ---
 				
-				//Now we calculate the new center clock because YOLO
+				//Now we calculate the new center clock
 
 				debugOutput.channel[TRANSMIT_CLOCK] = 15000;
 				debugOutput.channel[0] = 0;
 				MCBSP_write(DSK6713_AIC23_DATAHANDLE, debugOutput.combo);
 
 				//runMasterResponseSincPulseTimingControl();
-
 
 //				//								whole # of clock overflows + delay_estimate
 //				//		NOTE: delay_estimate needs to be wraped in some cases!
@@ -649,6 +662,62 @@ void runReceivedPulseBufferDownmixing(){
 	for (i=3;i<(2*N+2*M);i+=4){
 		yc[i] = 0;
 		ys[i] = -recbuf[i];
+	}
+}
+
+void gpioInit()
+{
+	//--------------NOTE------------------
+	//	FOR GPIOs TO WORK ON C6713 DSK SPECTRUM DIGITAL BOARD
+	//	SWITCH 4 OF THE DIPSWITCH SW3 (NOT SW1!!!) HAS TO BE ON-CLOSED
+	//--------------NOTE------------------
+
+	GPIO_Config MyConfig = {
+
+	0x00000000, /* gpgc */
+
+	0x0000FFFF, /* gpen --*/
+
+	0x00000000, /* gdir -*/
+
+	0x00000000, /* gpval */
+
+	0x00000000, /* gphm all interrupts disabled for io pins */
+
+	0x00000000, /* gplm all interrupts to cpu or edma disabled  */
+
+	0x00000000  /* gppol -- default state */
+
+	};
+
+	hGpio  = GPIO_open( GPIO_DEV0, GPIO_OPEN_RESET );
+
+	GPIO_config(hGpio  , &MyConfig );
+
+	/* Enables pins */
+	GPIO_pinEnable (hGpio,GPIO_PIN0| GPIO_PIN1 | GPIO_PIN2 | GPIO_PIN4 | GPIO_PIN5);//enable here or in MyConfig
+
+	/* Sets Pin0, Pin1, and Pin2 as an output pins. */
+	int Current_dir = GPIO_pinDirection(hGpio,GPIO_PIN0, GPIO_OUTPUT);
+	Current_dir = GPIO_pinDirection(hGpio,GPIO_PIN1, GPIO_OUTPUT);
+	Current_dir = GPIO_pinDirection(hGpio,GPIO_PIN2, GPIO_OUTPUT);
+
+}
+
+viod gpioToggle()
+{
+	while(1)
+	{
+		GPIO_pinWrite( hGpio, GPIO_PIN0, 0 );
+		GPIO_pinWrite( hGpio, GPIO_PIN1, 0 );
+		*((int*)GPIO_VALUE_ADDRESS) = 255;
+		DSK6713_waitusec(500000);
+		GPIO_pinWrite( hGpio, GPIO_PIN0, 1 );
+		GPIO_pinWrite( hGpio, GPIO_PIN1, 1 );
+		*((int*)GPIO_VALUE_ADDRESS) = 0;
+		DSK6713_waitusec(500000);
+
+
 	}
 }
 
