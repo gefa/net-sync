@@ -38,33 +38,40 @@
 #define T1 100000
 
 // sinc pulse normalized bandwidth
-#define BW 0.0125
+#define BW 0.0125 //100Hz@8KhzFs
 
 // 2*N+1 is the number of samples in the sinc function
 #define N (1 << 9) //512
-#define N2 ((N<<1)+1) //1025
+#define N2 ((N*2)+1) //1025
 
 // virtual clock counter maximum
+/*
 #if (NODE_TYPE == MASTER_NODE)
 #define VCLK_MAX (1<<12)	//4096
 #elif (NODE_TYPE == SLAVE_NODE)
-#define VCLK_MAX (1<<12) //4096
+#define VCLK_MAX (1<<14) //4096
 #endif
+*/
+#define VCLK_MAX (1<<14) //16384 counts, never reaches this
+#define VCLK_MAX_WRAPPED (1<<12) //4096 counts
+
+#define VCLK_WRAP(i) ((i)&(VCLK_MAX_WRAPPED-1))
 
 #define SLAVE_PULSE_COUNTER_MIN (-(VCLK_MAX*2))
 #define SLAVE_PULSE_COUNTER_MAX (VCLK_MAX*2)
 
-#define CLOCK_WRAP(i) ((i) & (VCLK_MAX - 1)) // index wrapping macro
+
 
 // max lag for computing correlations
 #define MAXLAG 200
 
 // number of coarse delays to store
-#define MAX_STORED_DELAYS_COARSE 50
-#define MAX_STORED_DELAYS_FINE 	 50
+#define MAX_STORED_DELAYS_COARSE 16
+#define MAX_STORED_DELAYS_FINE 	 16
 
 //Response buffer size in samples
-#define OUTPUT_BUF_SIZE (2*N+1)
+//#define OUTPUT_BUF_SIZE (2*N+1)
+//Instead, use N2 for everything. EVERYTHING.
 
 // maximum sample value
 #define MAXSAMP 32767;
@@ -74,9 +81,9 @@
 #define CHANNEL_RIGHT 1
 
 //Define master/slave channels
-#define TRANSMIT_SINC	CHANNEL_LEFT
-#define RECEIVE_SINC	CHANNEL_LEFT
-#define TRANSMIT_CLOCK	CHANNEL_RIGHT
+#define TRANSMIT_SINC	CHANNEL_LEFT	//Channel along which the transmission sinc pulse is sent
+#define RECEIVE_SINC	CHANNEL_LEFT	//Corresponding receive channel on the other end
+#define TRANSMIT_CLOCK	CHANNEL_RIGHT	//Verification clock output that centers along the zero-point of the vclock
 
 // State definitions
 #define STATE_SEARCHING 0
@@ -104,7 +111,7 @@
 #include <stdio.h>					//For printf
 #include <c6x.h>					//generic include
 #include <csl.h>					//generic csl include
-#include <csl_gpio.h>
+#include <csl_gpio.h>				//GPIO support
 #include <csl_mcbsp.h>				//for codec support
 #include <csl_irq.h>				//interrupt support
 #include <math.h>					//duh
@@ -155,19 +162,19 @@ short max_samp = 0;
 
 //Master sinc response variables
 volatile short vir_clock_start;
-volatile short CurTime = 0;
+volatile short CurTime;
 short halfSinc;
 short tModulatedSincPulse[OUTPUT_BUF_SIZE];
 volatile short response_done = 0; 						//not done var for response state
-volatile short response_buf_idx = 0; 					//index for output buffer
-volatile short response_buf_idx_max = OUTPUT_BUF_SIZE;
+//volatile short response_buf_idx = 0; 					//index for output buffer
+//volatile short response_buf_idx_max = OUTPUT_BUF_SIZE;
 volatile short amSending = 0;			//control var for starting the sending of the response from master
 volatile short sinc_launch = 0;
 volatile short sinc_roundtrip_time ;
 volatile short vclock_offset ;
 volatile short ClockPulse = 0;							//Used for generating the master clock pulse output value
-volatile short calculation_done = 0;		//debug
-volatile short v_clk[3];					//debug
+//volatile short calculation_done = 0;		//debug
+//volatile short v_clk[3];					//debug
 
 //Slave transmit variables
 short pulse_counter = SLAVE_PULSE_COUNTER_MIN;
@@ -175,23 +182,12 @@ short pulse_counter = SLAVE_PULSE_COUNTER_MIN;
 // ISR combos
 union {Uint32 combo; short channel[2];} tempOutput;
 union {Uint32 combo; short channel[2];} tempInput;
-//union {Uint32 combo; short channel[2];} debugOutput;
 
+// Handles
 DSK6713_AIC23_CodecHandle hCodec;							// Codec handle
 DSK6713_AIC23_Config config = DSK6713_AIC23_DEFAULTCONFIG;  // Codec configuration with default settings
 
 GPIO_Handle    hGpio; /* GPIO handle */
-
-GPIO_Handle gpio_handle;
-GPIO_Config gpio_config = {
-    0x00000000, // gpgc = global control
-    0x0000FFFF, // gpen = enable 0-15
-    0x00000000, // gdir = all inputs
-    0x00000000, // gpval = n/a
-    0x00000000, // gphm all interrupts disabled for io pins
-    0x00000000, // gplm all interrupts to cpu or edma disabled
-    0x00000000  // gppol -- default state */
-};
 
 // ------------------------------------------
 // end of variables
@@ -286,7 +282,6 @@ void main()
 			else if (state==STATE_CALCULATION) {
 				//printf wrecks the real-time operation
 				//printf("Buffer recorded: %d %f.\n",recbuf_start_clock,corrSumIncoherent);
-				corrSumIncoherent = 0;  // clear correlation sum
 				// -----------------------------------------------
 				// this is where we estimate the time of arrival
 				// -----------------------------------------------
@@ -304,20 +299,14 @@ void main()
 			else if (state==STATE_CALCULATION){
 				//printf wrecks the real-time operation
 				//printf("Buffer recorded: %d %f.\n",recbuf_start_clock,corrSumIncoherent);
-				corrSumIncoherent = 0;  // clear correlation sum
 				// -----------------------------------------------
 				// this is where we estimate the time of arrival
 				// -----------------------------------------------
+				ToggleDebugGPIO(1);
 				runReceivedPulseBufferDownmixing();
 				runReceviedSincPulseTimingAnalysis();
-				// --- Prepare for Response State ---
-				
-				//Now we calculate the new center clock
-
-				//debugOutput.channel[TRANSMIT_CLOCK] = 15000;
-				//debugOutput.channel[0] = 0;
-				//MCBSP_write(DSK6713_AIC23_DATAHANDLE, debugOutput.combo);
 				ToggleDebugGPIO(1);
+				//Now we calculate the new center clock
 
 				//								whole # of clock overflows + delay_estimate
 				//		NOTE: delay_estimate needs to be wraped in some cases!
@@ -326,28 +315,9 @@ void main()
 				vclock_offset = sinc_roundtrip_time / 2;					// divide by two
 				//runMasterResponseSincPulseTimingControl();
 
-//				//								whole # of clock overflows + delay_estimate
-//				//		NOTE: delay_estimate needs to be wraped in some cases!
-//				short sinc_roundtrip_time = ((short)(sinc_launch/L))*L + coarse_delay_estimate[cde_index];
-//				//sinc_roundtrip_time = sinc_launch;
-//				vclock_offset = sinc_roundtrip_time / 2;					// divide by two
-//
-//				vclock_offset = CLOCK_WRAP(vclock_offset);
-//				// we might want to store sinc_roundtrip_time later
-//
-//				while (vclock_counter != vclock_offset)	;//wait for mster zero
-//				vclock_counter = L;	//correct the vclock
-
-
-				while(state == STATE_CALCULATION){//wait for ISR to timeout and switch state
-//					debugOutput.channel[TRANSMIT_SINC] = sinc_roundtrip_time;
-//					debugOutput.channel[0] = 0;
-//					MCBSP_write(DSK6713_AIC23_DATAHANDLE, debugOutput.combo);
-//					debugOutput.channel[TRANSMIT_SINC] = 0;
-//					//printf("recorded: %d \n",sinc_launch);
-//					MCBSP_write(DSK6713_AIC23_DATAHANDLE, debugOutput.combo);
+				while(state == STATE_CALCULATION){
+					//wait for ISR to timeout and switch state
 				}
-				// done, after 3 vitual clock overflows, ISR will timeout and go to STATE_TRANSMITTING
 
 			}
 			
@@ -365,39 +335,19 @@ interrupt void serialPortRcvISR()
 	// Note that right channel is in temp.channel[0]
 	// Note that left channel is in temp.channel[1]
 
-	vclock_counter++; //Note! --- Not sure of the effects of moving the increment to the top
 	//Clock counter wrap
+	vclock_counter++; //Note! --- Not sure of the effects of moving the increment to the top
+	//Code should be common to both
+	if(vclock_counter >= VCLK_MAX){
+		vclock_counter = 0;
+		ToggleDebugGPIO(0);
+	}
+	else{
+		//Do nothing
+	}
+
 	#if (NODE_TYPE==MASTER_NODE)
-		if (vclock_counter>=(VCLK_MAX)) {
-			vclock_counter = 0; // wrap
-			tempOutput.channel[TRANSMIT_CLOCK] = 32000; //Left channel for debug, doesn't really do anything
-		}
-		else{
-			tempOutput.channel[TRANSMIT_CLOCK] = 0; //Left channel for debug, doesn't really do anything
-		}
-
-	#elif(NODE_TYPE==SLAVE_NODE)
-		if (vclock_counter>=(VCLK_MAX)){ //runs at 1/2x rate of master for clock pulses, might want to switch variables?
-			vclock_counter = 0;
-			tempOutput.channel[TRANSMIT_CLOCK] = 32000;
-		}
-		else{
-			tempOutput.channel[TRANSMIT_CLOCK] = 0;
-		}
-
-		// update sinc start virtual clock
-		sinc_launch++;
-		if (sinc_launch>=5*VCLK_MAX) {//x*VCLK_MAX, x dictates the timeout, 3 should be enough
-			sinc_launch = 0; //
-			state=STATE_TRANSMIT;//timeout reached, no sinc reflected from master, send sinc again
-		}
-
-
-	#endif
-
-
 	//Run all interrupt routine logic for the master node here
-	#if (NODE_TYPE==MASTER_NODE)
 		if (state==STATE_SEARCHING) {
 			runSearchingStateCodeISR();
 		}
@@ -410,11 +360,12 @@ interrupt void serialPortRcvISR()
 		else if(state==STATE_TRANSMIT){
 			runResponseStateCodeISR();
 		}
+		else {
+			//Error in logic!
+		}
 
-	//Run all interrupt routines for the slave node here
 	#elif (NODE_TYPE==SLAVE_NODE)
-		
-		//Control code for states and receiving stuff
+	//Run all interrupt routines for the slave node here
 		if(state==STATE_SEARCHING) {
 			runSearchingStateCodeISR();
 		}
@@ -426,7 +377,7 @@ interrupt void serialPortRcvISR()
 		}
 		else if(state==STATE_TRANSMIT){
 			// transmit initial sinc to master (beg for some precision)
-			vir_clock_start = VCLK_MAX-N;	// subject to change
+			//vir_clock_start = VCLK_MAX-N;	// subject to change
 
 			runResponseStateCodeISR();//this function will change state when it's done
 
@@ -470,7 +421,6 @@ void SetupReceiveBasebandSincPulseBuffer(){
 		basebandSincRef[i+N] = (float) y;
 	}
 }
-
 /**
 	Sets up the matched filter buffers which are used for matching and filtering of the incoming sines and cosines
 */
@@ -484,9 +434,8 @@ void SetupReceiveTrigonometricMatchedFilters(){
 		buf[i] = 0;             // clear searching buffer
 	}
 }
-
 /**
-
+	Not sure what this does again now
 */
 void runMasterResponseSincPulseTimingControl(){
 	// --- Prepare for Response State ---
@@ -506,8 +455,6 @@ void runMasterResponseSincPulseTimingControl(){
 		//MCBSP_write(DSK6713_AIC23_DATAHANDLE, temp.combo);
 
 		if(vclock_counter==0){
-			v_clk[0]=666;
-			v_clk[0]=vclock_counter;
 			while(vclock_counter != (VCLK_MAX-1)) ;
 		}else
 			while(vclock_counter != 0) ;
@@ -552,8 +499,9 @@ void runMasterResponseSincPulseTimingControl(){
 
 #endif
 }
-
-
+/**
+ * Handles the searching for peak function of the incoming waveform
+ */
 void runSearchingStateCodeISR(){
 
 		// put sample in searching buffer
@@ -588,7 +536,9 @@ void runSearchingStateCodeISR(){
 		}
 	}
 }
-
+/**
+ * Saves the incoming waveform data to the receive buffer for later processing in the main loop
+ */
 void runRecordingStateCodeISR(){
 	// put sample in recording buffer
 	recbuf[recbufindex] = (float) tempInput.channel[RECEIVE_SINC];  // right channel
@@ -599,12 +549,15 @@ void runRecordingStateCodeISR(){
 		recbufindex = 0; // shouldn't be necessary
 	}
 }
-
+/**
+ * Placeholder to do nothing. Calculations are supposed to be ongoing in the main loop
+ */
 void runCalculationStateCodeISR(){
 	//Do nothing here
 }
-
-
+/**
+ * Handles
+ */
 void runResponseStateCodeISR(){
 	if(vclock_counter==vir_clock_start){ //Okay, we've reached the appropriate wrap around point where we should start sending the dataers
 		amSending = 1;
@@ -705,37 +658,32 @@ void gpioInit()
 	//--------------NOTE------------------
 
 	GPIO_Config MyConfig = {
-
 	0x00000000, /* gpgc */
-
 	0x0000FFFF, /* gpen --*/
-
 	0x00000000, /* gdir -*/
-
 	0x00000000, /* gpval */
-
 	0x00000000, /* gphm all interrupts disabled for io pins */
-
 	0x00000000, /* gplm all interrupts to cpu or edma disabled  */
-
 	0x00000000  /* gppol -- default state */
-
 	};
-
 	hGpio  = GPIO_open( GPIO_DEV0, GPIO_OPEN_RESET );
-
 	GPIO_config(hGpio  , &MyConfig );
-
 	/* Enables pins */
 	GPIO_pinEnable (hGpio,GPIO_PIN0| GPIO_PIN1 | GPIO_PIN2 | GPIO_PIN3 | GPIO_PIN4 | GPIO_PIN5);//enable here or in MyConfig
-
 	/* Sets Pin0, Pin1, and Pin2 as an output pins. */
 	int Current_dir = GPIO_pinDirection(hGpio,GPIO_PIN0, GPIO_OUTPUT);
 	Current_dir = GPIO_pinDirection(hGpio,GPIO_PIN1, GPIO_OUTPUT);
 	Current_dir = GPIO_pinDirection(hGpio,GPIO_PIN2, GPIO_OUTPUT);
-
+	Current_dir = GPIO_pinDirection(hGpio,GPIO_PIN3, GPIO_OUTPUT);
+	Current_dir = GPIO_pinDirection(hGpio,GPIO_PIN4, GPIO_OUTPUT);
+	Current_dir = GPIO_pinDirection(hGpio,GPIO_PIN5, GPIO_OUTPUT);
 }
 
+/** \brief Loops toggling two GPIO pins for debug test
+ *
+ *
+ *
+ */
 void gpioToggle()
 {
 	while(1)
@@ -753,7 +701,7 @@ void gpioToggle()
 	}
 }
 
-/*
+
 float sumFloatArray(float* array, short numElmts){
 	float sum = 0.0;
 	short idx = 0;
@@ -762,7 +710,7 @@ float sumFloatArray(float* array, short numElmts){
 	}
 	return sum;
 }
-*/
+
 
 /*
 	Calculates the new virtual clock times based on incoming sinc pulse timing estimates.
@@ -783,7 +731,10 @@ short isSincInSameWindowHuh(short curClock, short delayEstimate){
 	return curClock > delayEstimate; //If its not greater, then it has already wrapped around the 0 tick, and we are currently in the next window.
 }
 
-
+/**	\brief Quickly toggles a set pin number high and then low again, for timing view
+ *
+ * @param IONum Pin number to toggle (0-3 currently)
+ */
 void inline ToggleDebugGPIO(short IONum){
 	if (IONum == 0){
 		GPIO_pinWrite(hGpio,GPIO_PIN0,1);
@@ -800,6 +751,14 @@ void inline ToggleDebugGPIO(short IONum){
 	else if(IONum == 3){
 		GPIO_pinWrite(hGpio,GPIO_PIN3, 1);
 		GPIO_pinWrite(hGpio,GPIO_PIN3, 0);
+	}
+	else if(IONum == 4){
+		GPIO_pinWrite(hGpio,GPIO_PIN4, 1);
+		GPIO_pinWrite(hGpio,GPIO_PIN4, 0);
+	}
+	else if(IONum == 5){
+		GPIO_pinWrite(hGpio,GPIO_PIN5, 1);
+		GPIO_pinWrite(hGpio,GPIO_PIN5, 0);
 	}
 	else{
 		//error
