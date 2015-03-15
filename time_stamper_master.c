@@ -57,9 +57,9 @@
 
 #define VCLK_WRAP(i) ((i)&(VCLK_MAX_WRAPPED-1))
 
-#define SLAVE_PULSE_COUNTER_MIN (-(VCLK_MAX*2))
-#define SLAVE_PULSE_COUNTER_MAX (VCLK_MAX*2)
-
+//#define SLAVE_PULSE_COUNTER_MIN (-(VCLK_MAX*2))
+//#define SLAVE_PULSE_COUNTER_MAX (VCLK_MAX*2)
+//Don't matter now
 
 
 // max lag for computing correlations
@@ -100,15 +100,8 @@
 #define GPIO_DIRECTION_ADDRESS	0x01B00004
 #define GPIO_VALUE_ADDRESS		0x01B00008
 
-#include <stdio.h>
-#include <c6x.h>
-#include <csl.h>
-#include <csl_mcbsp.h>
-#include <csl_irq.h>
-#include <csl_gpio.h>
-#include <math.h>
-
 #include <stdio.h>					//For printf
+#include <stdint.h>
 #include <c6x.h>					//generic include
 #include <csl.h>					//generic csl include
 #include <csl_gpio.h>				//GPIO support
@@ -164,7 +157,7 @@ short max_samp = 0;
 volatile short vir_clock_start;
 volatile short CurTime;
 short halfSinc;
-short tModulatedSincPulse[OUTPUT_BUF_SIZE];
+short tModulatedSincPulse[N2];
 volatile short response_done = 0; 						//not done var for response state
 //volatile short response_buf_idx = 0; 					//index for output buffer
 //volatile short response_buf_idx_max = OUTPUT_BUF_SIZE;
@@ -175,13 +168,15 @@ volatile short vclock_offset ;
 volatile short ClockPulse = 0;							//Used for generating the master clock pulse output value
 //volatile short calculation_done = 0;		//debug
 //volatile short v_clk[3];					//debug
+volatile short virClockTransmitCenterSinc = 0;
+volatile short virClockTransmitCenterVerify = 0;
 
 //Slave transmit variables
-short pulse_counter = SLAVE_PULSE_COUNTER_MIN;
+//short pulse_counter = SLAVE_PULSE_COUNTER_MIN;
 
 // ISR combos
-union {Uint32 combo; short channel[2];} tempOutput;
-union {Uint32 combo; short channel[2];} tempInput;
+union {uint32_t combo; short channel[2];} tempOutput;
+union {uint32_t combo; short channel[2];} tempInput;
 
 // Handles
 DSK6713_AIC23_CodecHandle hCodec;							// Codec handle
@@ -197,7 +192,8 @@ GPIO_Handle    hGpio; /* GPIO handle */
 double sin(double);
 double cos(double);
 double atan2(double,double);
-//float sumFloatArray(float*, short numElmts);
+float sumFloatArray(float*, short numElmts);
+long sumIntArray(short* array, short numElmts);
 
 interrupt void serialPortRcvISR(void);
 
@@ -209,19 +205,26 @@ void runReceivedPulseBufferDownmixing();
 //void runSlaveSincPulseTimingUpdateCalcs();
 void inline ToggleDebugGPIO(short IONum);
 short isSincInSameWindowHuh(short curClock, short delayEstimate);
-
+short GoodToSendIndex(short counterTime, short centerPoint);
 
 
 //State functions run during ISR
 void runSearchingStateCodeISR();
 void runRecordingStateCodeISR();
 void runCalculationStateCodeISR();
-void runResponseStateCodeISR();
+//void runResponseStateCodeISR();
+//void runSlaveTransmitStateCodeISR();
+void runSincPulseTransmitISR();
+void runVerifyPulseTransmitISR();
 
 
 //State functions run during while() loop
-void runMasterResponseSincPulseTimingControl();
+//void runMasterResponseSincPulseTimingControl();
 void runReceviedSincPulseTimingAnalysis();
+
+//New state functions for new code.
+void calculateNewSynchronizationTimeSlave();
+void calculateNewResponseTimeMaster();
 
 //debug gpio function
 void gpioInit();
@@ -274,56 +277,38 @@ void main()
 
 	while(1)						// main loop
 	{
-		#if (NODE_TYPE==MASTER_NODE) //Master control loop code
-			if (state != STATE_CALCULATION) {
-				//Do nothing
-				//Maybe calculate the question to 42 if we have time
+		if (state!=STATE_CALCULATION) {
+			//Do nothing
+			//Maybe calculate the question to 42 if we have time
+		}
+		else if (state==STATE_CALCULATION){
+			// -----------------------------------------------
+			// this is where we estimate the time of arrival
+			// -----------------------------------------------
+			ToggleDebugGPIO(1);
+			runReceivedPulseBufferDownmixing();
+			runReceviedSincPulseTimingAnalysis();
+			ToggleDebugGPIO(1);
+			//Now we calculate the new center clock
+
+			#if (NODE_TYPE==MASTER_NODE)
+				calculateNewResponseTimeMaster();
+			#elif (NODE_TYPE==SLAVE_NODE)
+				calculateNewSynchronizationTimeSlave();
+			#endif
+
+			state = STATE_TRANSMIT; //go to responding!
+
+			while(state == STATE_TRANSMIT){
+				//wait for ISR to timeout and switch state
 			}
-			else if (state==STATE_CALCULATION) {
-				//printf wrecks the real-time operation
-				//printf("Buffer recorded: %d %f.\n",recbuf_start_clock,corrSumIncoherent);
-				// -----------------------------------------------
-				// this is where we estimate the time of arrival
-				// -----------------------------------------------
-				runReceivedPulseBufferDownmixing();
-				runReceviedSincPulseTimingAnalysis();
-				// --- Prepare for Response State ---
-				runMasterResponseSincPulseTimingControl();
 
-			}
-		#elif (NODE_TYPE==SLAVE_NODE)
-			//Do nothing, we're the slave. All real calculations occur during the ISR
-			if(state!=STATE_CALCULATION){
-				//Still do nothing
-			}
-			else if (state==STATE_CALCULATION){
-				//printf wrecks the real-time operation
-				//printf("Buffer recorded: %d %f.\n",recbuf_start_clock,corrSumIncoherent);
-				// -----------------------------------------------
-				// this is where we estimate the time of arrival
-				// -----------------------------------------------
-				ToggleDebugGPIO(1);
-				runReceivedPulseBufferDownmixing();
-				runReceviedSincPulseTimingAnalysis();
-				ToggleDebugGPIO(1);
-				//Now we calculate the new center clock
-
-				//								whole # of clock overflows + delay_estimate
-				//		NOTE: delay_estimate needs to be wraped in some cases!
-				short sinc_roundtrip_time = ((short)(sinc_launch/VCLK_MAX))*VCLK_MAX + coarse_delay_estimate[cde_index];
-				//sinc_roundtrip_time = sinc_launch;
-				vclock_offset = sinc_roundtrip_time / 2;					// divide by two
-				//runMasterResponseSincPulseTimingControl();
-
-				while(state == STATE_CALCULATION){
-					//wait for ISR to timeout and switch state
-				}
-
-			}
-			
-		#endif
-
-
+			//increment indices
+			cde_index++;
+			if(cde_index>=MAX_STORED_DELAYS_COARSE) cde_index = 0;
+			fde_index++;
+			if(fde_index>=MAX_STORED_DELAYS_FINE) fde_index = 0;
+		}
 	}
 }
 
@@ -346,48 +331,24 @@ interrupt void serialPortRcvISR()
 		//Do nothing
 	}
 
-	#if (NODE_TYPE==MASTER_NODE)
-	//Run all interrupt routine logic for the master node here
-		if (state==STATE_SEARCHING) {
-			runSearchingStateCodeISR();
-		}
-		else if (state==STATE_RECORDING) {
-			runRecordingStateCodeISR();
-		}
-		else if(state==STATE_CALCULATION){
-			runCalculationStateCodeISR();
-		}
-		else if(state==STATE_TRANSMIT){
-			runResponseStateCodeISR();
-		}
-		else {
-			//Error in logic!
-		}
-
-	#elif (NODE_TYPE==SLAVE_NODE)
-	//Run all interrupt routines for the slave node here
-		if(state==STATE_SEARCHING) {
-			runSearchingStateCodeISR();
-		}
-		else if(state==STATE_RECORDING){
-			runRecordingStateCodeISR();
-		}
-		else if(state==STATE_CALCULATION){
-			runCalculationStateCodeISR();
-		}
-		else if(state==STATE_TRANSMIT){
-			// transmit initial sinc to master (beg for some precision)
-			//vir_clock_start = VCLK_MAX-N;	// subject to change
-
-			runResponseStateCodeISR();//this function will change state when it's done
-
-		}
-		else {
-			//ERROR in STATE CODE LOGIC
-		}
+	//Logic for different states is the same on both master and slave sides when expecting to receive
+	if (state==STATE_SEARCHING) {
+		runSearchingStateCodeISR();
+	}
+	else if (state==STATE_RECORDING) {
+		runRecordingStateCodeISR();
+	}
+	else if(state==STATE_CALCULATION){
+		runCalculationStateCodeISR();
+	}
+	else if(state==STATE_TRANSMIT){
+		runSincPulseTransmitISR();//this function will change state when it's done
+	}
+	else {
+		//ERROR in STATE CODE LOGIC
+	}
+	runVerifyPulseTransmitISR();	//Outputs synchronized pulse on aux channel
 		
-	#endif
-
 	//Write the output sample to the audio codec
 	MCBSP_write(DSK6713_AIC23_DATAHANDLE, tempOutput.combo);
 
@@ -434,9 +395,12 @@ void SetupReceiveTrigonometricMatchedFilters(){
 		buf[i] = 0;             // clear searching buffer
 	}
 }
+
+
 /**
 	Not sure what this does again now
 */
+/*
 void runMasterResponseSincPulseTimingControl(){
 	// --- Prepare for Response State ---
 	union {Uint32 combo; short channel[2];} temp;
@@ -499,6 +463,9 @@ void runMasterResponseSincPulseTimingControl(){
 
 #endif
 }
+*/
+
+
 /**
  * Handles the searching for peak function of the incoming waveform
  */
@@ -555,25 +522,13 @@ void runRecordingStateCodeISR(){
 void runCalculationStateCodeISR(){
 	//Do nothing here
 }
-/**
- * Handles
- */
-void runResponseStateCodeISR(){
-	if(vclock_counter==vir_clock_start){ //Okay, we've reached the appropriate wrap around point where we should start sending the dataers
-		amSending = 1;
-		sinc_launch = 0;//center outgoing tick at virtual tick
-	}
-	if(amSending){ //write the buffered output waveform to the output file, adn increment the index counter
-		tempOutput.channel[TRANSMIT_SINC] = tModulatedSincPulse[response_buf_idx];
-		response_buf_idx++;
-	}
-	if(response_buf_idx==response_buf_idx_max){
-		amSending = 0;			//quits the sending part above
-		response_buf_idx = 0;
-		state=STATE_SEARCHING;
-	}
-}
 
+
+
+/**
+ * Calculates the delay estimates
+ * Stores the results in the coarse_delay_estimate and fine_delay_estimate buffers
+ */
 void runReceviedSincPulseTimingAnalysis(){
 	// this is where we apply the matched filter
 	// we only do this over a limited range
@@ -629,6 +584,9 @@ void runReceviedSincPulseTimingAnalysis(){
 	// --- Calculations Finished ---
 }
 
+/**
+ * Mixes the received waveform in recbuf down to baseband. ONLY WORKS at currently set center freq (1/2 of nyquist)
+ */
 void runReceivedPulseBufferDownmixing(){
 	// downmix (had problems using sin/cos here so used a trick)
 	// The trick is based on the incoming frequency per sample being (n * pi/2), so every other sample goes to zero.
@@ -650,6 +608,9 @@ void runReceivedPulseBufferDownmixing(){
 	}
 }
 
+/**
+ * Initializes the GPIO registers to allow for toggling some of them to view the state change outputs
+ */
 void gpioInit()
 {
 	//--------------NOTE------------------
@@ -711,25 +672,22 @@ float sumFloatArray(float* array, short numElmts){
 	return sum;
 }
 
-
-/*
-	Calculates the new virtual clock times based on incoming sinc pulse timing estimates.
-*/
-/*
-void runSlaveSincPulseTimingUpdateCalcs(){
-	slaveNewVClk = coarse_delay_estimate[cde_index] / 2; //This math is probably stupidly off because I need to compensate for different total clocks sometimes... maybe?
-}
-*/
-
-
 /**
-	@name isSincInSameWindowHuh
-	@returns
-
-*/
-short isSincInSameWindowHuh(short curClock, short delayEstimate){
-	return curClock > delayEstimate; //If its not greater, then it has already wrapped around the 0 tick, and we are currently in the next window.
+ * Sums an array of integers and returns the result
+ * @param array pointer to array of values
+ * @param numElmts
+ * @return the sum of the array. In long format to prevent overflow
+ */
+long sumIntArray(short* array, short numElmts){
+	long sum = 0;
+	short idx = 0;
+	for(idx=0; idx < numElmts; idx++){
+		sum += (long)array[idx];
+	}
+	return sum;
 }
+
+
 
 /**	\brief Quickly toggles a set pin number high and then low again, for timing view
  *
@@ -763,5 +721,71 @@ void inline ToggleDebugGPIO(short IONum){
 	else{
 		//error
 	}
+}
+
+/**
+ * 	Transmits the synchronizing sinc pulse on the main channel to the other node.
+ * 	The value for the center point should be properly calculated based on node type from the other functions
+ * 	Is always centered at 0 for the slave, and the mirrored response for the master
+ */
+void runSincPulseTransmitISR(){
+
+	short idxTemp = GoodToSendIndex(vclock_counter, virClockTransmitCenterSinc);
+
+	if(idxTemp != -1){
+		tempOutput.channel[TRANSMIT_SINC] = tModulatedSincPulse[idxTemp];
+	}
+	else{
+		tempOutput.channel[TRANSMIT_SINC] = 0;
+	}
+	if(idxTemp == N2) //We have reached the end! go to receive
+		state=STATE_SEARCHING;
+}
+
+/**
+ *	Adds the second sinc pulse which acts as the verification point. Is centered at 0 always for the master,
+ *	and the new observed synchronized time pulse for the slave
+ */
+void runVerifyPulseTransmitISR(){
+	short idxTemp = GoodToSendIndex(vclock_counter, virClockTransmitCenterVerify);
+
+	if(idxTemp != -1){
+		tempOutput.channel[TRANSMIT_CLOCK] = tModulatedSincPulse[idxTemp];
+	}
+	else{
+		tempOutput.channel[TRANSMIT_CLOCK] = 0;
+	}
+}
+
+/**
+ * Responds with the proper index for the output buffer when given the transmitting center point, and the current time.
+ * Will reply with an invalid value (-1) for the shorts if we are out of range. Logic should check for this
+ * @param counterTime	Current time for the vclk counter in the interrupt
+ * @param centerPoint	Highest point in the response sinc pulse (x=0) that is being sent
+ * @return the index of the transmit buffer to send (0 to N2 - 1), or -1 if we're actually out of range
+ */
+short GoodToSendIndex(short counterTime, short centerPoint){
+	if((centerPoint+N)<(centerPoint-N)){ //we are too close to the edge, it will wrap!
+
+	}
+	else{
+
+	}
+	return 0;
+}
+
+/**
+ * Looks at the received response time, the current time (to prevent trying to send immediately a fractional waveform,
+ * and calculates the new mirrored center time around a clock tick upon which to center the response at
+ */
+void calculateNewResponseTimeMaster(){
+	virClockTransmitCenterSinc = 0; //placeholder
+}
+
+/**
+ *
+ */
+void calculateNewSynchronizationTimeSlave(){
+	virClockTransmitCenterVerify = 0; //placeholder
 }
 

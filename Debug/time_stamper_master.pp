@@ -4,9 +4,9 @@ time_stamper_master.obj: ../time_stamper_master.c
 time_stamper_master.obj: C:/TI_DSK/ccsv6/tools/compiler/c6000_7.4.8/include/stdio.h
 time_stamper_master.obj: C:/TI_DSK/ccsv6/tools/compiler/c6000_7.4.8/include/linkage.h
 time_stamper_master.obj: C:/TI_DSK/ccsv6/tools/compiler/c6000_7.4.8/include/stdarg.h
+time_stamper_master.obj: C:/TI_DSK/ccsv6/tools/compiler/c6000_7.4.8/include/stdint.h
 time_stamper_master.obj: C:/TI_DSK/ccsv6/tools/compiler/c6000_7.4.8/include/c6x.h
 time_stamper_master.obj: C:/TI_DSK/ccsv6/tools/compiler/c6000_7.4.8/include/vect.h
-time_stamper_master.obj: C:/TI_DSK/ccsv6/tools/compiler/c6000_7.4.8/include/stdint.h
 time_stamper_master.obj: C:/Program\ Files/C6xCSL/include/csl.h
 time_stamper_master.obj: C:/Program\ Files/C6xCSL/include/csl_chip.h
 time_stamper_master.obj: C:/Program\ Files/C6xCSL/include/csl_stdinc.h
@@ -19,6 +19,8 @@ time_stamper_master.obj: C:/Program\ Files/C6xCSL/include/csl_irq.h
 time_stamper_master.obj: C:/Program\ Files/C6xCSL/include/csl_irqhal.h
 time_stamper_master.obj: C:/Program\ Files/C6xCSL/include/csl_timer.h
 time_stamper_master.obj: C:/Program\ Files/C6xCSL/include/csl_timerhal.h
+time_stamper_master.obj: C:/Program\ Files/C6xCSL/include/csl_gpio.h
+time_stamper_master.obj: C:/Program\ Files/C6xCSL/include/csl_gpiohal.h
 time_stamper_master.obj: C:/Program\ Files/C6xCSL/include/csl_mcbsp.h
 time_stamper_master.obj: C:/Program\ Files/C6xCSL/include/csl_mcbsphal.h
 time_stamper_master.obj: C:/TI_DSK/ccsv6/tools/compiler/c6000_7.4.8/include/math.h
@@ -37,9 +39,9 @@ time_stamper_master.obj: C:/TI_DSK/dsk6713revc_files/CCStudio/c6000/dsk6713/incl
 C:/TI_DSK/ccsv6/tools/compiler/c6000_7.4.8/include/stdio.h: 
 C:/TI_DSK/ccsv6/tools/compiler/c6000_7.4.8/include/linkage.h: 
 C:/TI_DSK/ccsv6/tools/compiler/c6000_7.4.8/include/stdarg.h: 
+C:/TI_DSK/ccsv6/tools/compiler/c6000_7.4.8/include/stdint.h: 
 C:/TI_DSK/ccsv6/tools/compiler/c6000_7.4.8/include/c6x.h: 
 C:/TI_DSK/ccsv6/tools/compiler/c6000_7.4.8/include/vect.h: 
-C:/TI_DSK/ccsv6/tools/compiler/c6000_7.4.8/include/stdint.h: 
 C:/Program\ Files/C6xCSL/include/csl.h: 
 C:/Program\ Files/C6xCSL/include/csl_chip.h: 
 C:/Program\ Files/C6xCSL/include/csl_stdinc.h: 
@@ -52,6 +54,8 @@ C:/Program\ Files/C6xCSL/include/csl_irq.h:
 C:/Program\ Files/C6xCSL/include/csl_irqhal.h: 
 C:/Program\ Files/C6xCSL/include/csl_timer.h: 
 C:/Program\ Files/C6xCSL/include/csl_timerhal.h: 
+C:/Program\ Files/C6xCSL/include/csl_gpio.h: 
+C:/Program\ Files/C6xCSL/include/csl_gpiohal.h: 
 C:/Program\ Files/C6xCSL/include/csl_mcbsp.h: 
 C:/Program\ Files/C6xCSL/include/csl_mcbsphal.h: 
 C:/TI_DSK/ccsv6/tools/compiler/c6000_7.4.8/include/math.h: 
