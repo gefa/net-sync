@@ -52,7 +52,7 @@
 #define VCLK_MAX (1<<14) //4096
 #endif
 */
-#define VCLK_MAX (1<<14) //16384 counts, never reaches this
+#define VCLK_MAX (3<<13) //24576 counts, never reaches this
 #define VCLK_MAX_WRAPPED (1<<12) //4096 counts
 
 #define VCLK_WRAP(i) ((i)&(VCLK_MAX_WRAPPED-1))
@@ -90,6 +90,8 @@
 #define STATE_RECORDING 1
 #define STATE_CALCULATION 2
 #define STATE_TRANSMIT 3
+
+#define STATE_SEARCHING_TIMEOUT_LIMIT 5 //Can look for 5 wrapped clock periods before we give up
 
 // define PI and INVPI
 #define PI 3.14159265358979323846
@@ -168,8 +170,20 @@ volatile short vclock_offset ;
 volatile short ClockPulse = 0;							//Used for generating the master clock pulse output value
 //volatile short calculation_done = 0;		//debug
 //volatile short v_clk[3];					//debug
+
+
 volatile short virClockTransmitCenterSinc = 0;
 volatile short virClockTransmitCenterVerify = 0;
+/**
+ * //Next in line buffer so whenever the verification happens on the slave,
+ * The current output waveform is not clipped or shifted improperly. Calculations should update this,
+ * and the ISR moves it to virClockTransmitCenterVerify when its finished with the current one.
+ */
+volatile short virClockTransmitCenterVerifyBuffer = 0;
+
+//volatile short slaveTransmitTimeoutTime = 0; //Switches from receive to transmit state at this time for slave timeout
+volatile short numberOfTimesVerificationPulseSentWithoutUpdate = 0;
+
 
 //Slave transmit variables
 //short pulse_counter = SLAVE_PULSE_COUNTER_MIN;
@@ -334,6 +348,10 @@ interrupt void serialPortRcvISR()
 	//Logic for different states is the same on both master and slave sides when expecting to receive
 	if (state==STATE_SEARCHING) {
 		runSearchingStateCodeISR();
+		#if (NODE_TYPE==SLAVE_NODE)
+			//if(searchingStateTimeoutSlave())
+				state=STATE_TRANSMIT;
+		#endif
 	}
 	else if (state==STATE_RECORDING) {
 		runRecordingStateCodeISR();
@@ -347,8 +365,10 @@ interrupt void serialPortRcvISR()
 	else {
 		//ERROR in STATE CODE LOGIC
 	}
-	runVerifyPulseTransmitISR();	//Outputs synchronized pulse on aux channel
+	//Always
+		runVerifyPulseTransmitISR();	//Outputs synchronized pulse on aux channel
 		
+
 	//Write the output sample to the audio codec
 	MCBSP_write(DSK6713_AIC23_DATAHANDLE, tempOutput.combo);
 
@@ -640,8 +660,8 @@ void gpioInit()
 	Current_dir = GPIO_pinDirection(hGpio,GPIO_PIN5, GPIO_OUTPUT);
 }
 
-/** \brief Loops toggling two GPIO pins for debug test
- *
+/**
+ *	Toggles a GPIO pin specified twice to produce a short pulse to monitor
  *
  *
  */
@@ -663,6 +683,12 @@ void gpioToggle()
 }
 
 
+/**
+ * Sums up an array of floats to produce the sum
+ * @param array	The array to sum
+ * @param numElmts Number of elements to sum
+ * @return The sum
+ */
 float sumFloatArray(float* array, short numElmts){
 	float sum = 0.0;
 	short idx = 0;
@@ -747,8 +773,7 @@ void runSincPulseTransmitISR(){
  *	and the new observed synchronized time pulse for the slave
  */
 void runVerifyPulseTransmitISR(){
-	short idxTemp = GoodToSendIndex(vclock_counter, virClockTransmitCenterVerify);
-
+	short idxTemp = GoodToSendIndex(vclock_counter, VCLK_WRAP(virClockTransmitCenterVerify));
 	if(idxTemp != -1){
 		tempOutput.channel[TRANSMIT_CLOCK] = tModulatedSincPulse[idxTemp];
 	}
@@ -765,13 +790,17 @@ void runVerifyPulseTransmitISR(){
  * @return the index of the transmit buffer to send (0 to N2 - 1), or -1 if we're actually out of range
  */
 short GoodToSendIndex(short counterTime, short centerPoint){
+	short temp;
+
 	if((centerPoint+N)<(centerPoint-N)){ //we are too close to the edge, it will wrap!
 
 	}
 	else{
+		if((counterTime-centerPoint>-N)&&(counterTime+N)){
 
+		}
 	}
-	return 0;
+	return temp;
 }
 
 /**
