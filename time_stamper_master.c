@@ -159,7 +159,8 @@ short max_samp = 0;
 volatile short vir_clock_start;
 volatile short CurTime;
 short halfSinc;
-short tModulatedSincPulse[N2];
+short tClockSincPulse[N2];
+short tVerifSincPulse[N2];
 volatile short response_done = 0; 						//not done var for response state
 //volatile short response_buf_idx = 0; 					//index for output buffer
 //volatile short response_buf_idx_max = OUTPUT_BUF_SIZE;
@@ -218,9 +219,12 @@ void SetupReceiveTrigonometricMatchedFilters();
 void runReceivedPulseBufferDownmixing();
 //void runSlaveSincPulseTimingUpdateCalcs();
 void inline ToggleDebugGPIO(short IONum);
-short isSincInSameWindowHuh(short curClock, short delayEstimate);
-short GoodToSendIndex(short counterTime, short centerPoint);
 
+//short isSincInSameWindowHuh(short curClock, short delayEstimate);
+
+//short GoodToSendIndex(short counterTime, short centerPoint);
+short GetVerifPulseIndex();
+short GetSincPulseIndex();
 
 //State functions run during ISR
 void runSearchingStateCodeISR();
@@ -316,7 +320,6 @@ void main()
 			while(state == STATE_TRANSMIT){
 				//wait for ISR to timeout and switch state
 			}
-
 			//increment indices
 			cde_index++;
 			if(cde_index>=MAX_STORED_DELAYS_COARSE) cde_index = 0;
@@ -328,7 +331,6 @@ void main()
 
 interrupt void serialPortRcvISR()
 {
-
 	tempInput.combo = MCBSP_read(DSK6713_AIC23_DATAHANDLE);
 	tempOutput.combo = 0; //Set to zero now for missed sets.
 	// Note that right channel is in temp.channel[0]
@@ -755,11 +757,9 @@ void inline ToggleDebugGPIO(short IONum){
  * 	Is always centered at 0 for the slave, and the mirrored response for the master
  */
 void runSincPulseTransmitISR(){
-
-	short idxTemp = GoodToSendIndex(vclock_counter, virClockTransmitCenterSinc);
-
+	short idxTemp = GetSincPulseIndex(vclock_counter, virClockTransmitCenterSinc);
 	if(idxTemp != -1){
-		tempOutput.channel[TRANSMIT_SINC] = tModulatedSincPulse[idxTemp];
+		tempOutput.channel[TRANSMIT_SINC] = tClockSincPulse[idxTemp];
 	}
 	else{
 		tempOutput.channel[TRANSMIT_SINC] = 0;
@@ -773,35 +773,15 @@ void runSincPulseTransmitISR(){
  *	and the new observed synchronized time pulse for the slave
  */
 void runVerifyPulseTransmitISR(){
-	short idxTemp = GoodToSendIndex(vclock_counter, VCLK_WRAP(virClockTransmitCenterVerify));
+	short idxTemp = GetVerifPulseIndex(vclock_counter, VCLK_WRAP(virClockTransmitCenterVerify));
 	if(idxTemp != -1){
-		tempOutput.channel[TRANSMIT_CLOCK] = tModulatedSincPulse[idxTemp];
+		tempOutput.channel[TRANSMIT_CLOCK] = tVerificationSincPulse[idxTemp];
 	}
 	else{
 		tempOutput.channel[TRANSMIT_CLOCK] = 0;
 	}
 }
 
-/**
- * Responds with the proper index for the output buffer when given the transmitting center point, and the current time.
- * Will reply with an invalid value (-1) for the shorts if we are out of range. Logic should check for this
- * @param counterTime	Current time for the vclk counter in the interrupt
- * @param centerPoint	Highest point in the response sinc pulse (x=0) that is being sent
- * @return the index of the transmit buffer to send (0 to N2 - 1), or -1 if we're actually out of range
- */
-short GoodToSendIndex(short counterTime, short centerPoint){
-	short temp;
-
-	if((centerPoint+N)<(centerPoint-N)){ //we are too close to the edge, it will wrap!
-
-	}
-	else{
-		if((counterTime-centerPoint>-N)&&(counterTime+N)){
-
-		}
-	}
-	return temp;
-}
 
 /**
  * Looks at the received response time, the current time (to prevent trying to send immediately a fractional waveform,
@@ -818,3 +798,12 @@ void calculateNewSynchronizationTimeSlave(){
 	virClockTransmitCenterVerify = 0; //placeholder
 }
 
+/**
+ *
+ */
+short GetVerifPulseIndex(){
+
+}
+short GetSincPulseIndex(){
+
+}
