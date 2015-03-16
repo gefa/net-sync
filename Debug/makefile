@@ -8,6 +8,8 @@ CG_TOOL_ROOT := C:/TI_DSK/ccsv6/tools/compiler/c6000_7.4.8
 
 ORDERED_OBJS += \
 $(GEN_CMDS__FLAG) \
+"./DebugTools.obj" \
+"./MathCalculations.obj" \
 "./time_stamper_master.obj" \
 "./vectors.obj" \
 "../C6713.cmd" \
@@ -143,8 +145,8 @@ time_stamper_master.hex: $(EXE_OUTPUTS)
 # Other Targets
 clean:
 	-$(RM) $(EXE_OUTPUTS__QUOTED)$(BIN_OUTPUTS__QUOTED)
-	-$(RM) "time_stamper_master.pp" 
-	-$(RM) "time_stamper_master.obj" "vectors.obj" 
+	-$(RM) "DebugTools.pp" "MathCalculations.pp" "time_stamper_master.pp" 
+	-$(RM) "DebugTools.obj" "MathCalculations.obj" "time_stamper_master.obj" "vectors.obj" 
 	-$(RM) "vectors.pp" 
 	-@echo 'Finished clean'
 	-@echo ' '

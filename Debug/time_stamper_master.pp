@@ -34,6 +34,16 @@ time_stamper_master.obj: C:/TI_DSK/ccsv6/tools/compiler/c6000_7.4.8/include/unac
 time_stamper_master.obj: C:/TI_DSK/dsk6713revc_files/CCStudio/c6000/dsk6713/include/dsk6713.h
 time_stamper_master.obj: C:/TI_DSK/dsk6713revc_files/CCStudio/c6000/dsk6713/include/dsk6713_aic23.h
 time_stamper_master.obj: C:/TI_DSK/dsk6713revc_files/CCStudio/c6000/dsk6713/include/dsk6713_led.h
+time_stamper_master.obj: ../DebugTools.h
+time_stamper_master.obj: C:/TI_DSK/ccsv6/tools/compiler/c6000_7.4.8/include/stdio.h
+time_stamper_master.obj: C:/TI_DSK/ccsv6/tools/compiler/c6000_7.4.8/include/c6x.h
+time_stamper_master.obj: C:/TI_DSK/ccsv6/tools/compiler/c6000_7.4.8/include/math.h
+time_stamper_master.obj: ../MathCalculations.h
+time_stamper_master.obj: C:/TI_DSK/ccsv6/tools/compiler/c6000_7.4.8/include/stdio.h
+time_stamper_master.obj: C:/TI_DSK/ccsv6/tools/compiler/c6000_7.4.8/include/c6x.h
+time_stamper_master.obj: C:/TI_DSK/ccsv6/tools/compiler/c6000_7.4.8/include/math.h
+time_stamper_master.obj: ../MathCalculations.h
+time_stamper_master.obj: ../time_stamper_master.h
 
 ../time_stamper_master.c: 
 C:/TI_DSK/ccsv6/tools/compiler/c6000_7.4.8/include/stdio.h: 
@@ -69,3 +79,13 @@ C:/TI_DSK/ccsv6/tools/compiler/c6000_7.4.8/include/unaccess.h:
 C:/TI_DSK/dsk6713revc_files/CCStudio/c6000/dsk6713/include/dsk6713.h: 
 C:/TI_DSK/dsk6713revc_files/CCStudio/c6000/dsk6713/include/dsk6713_aic23.h: 
 C:/TI_DSK/dsk6713revc_files/CCStudio/c6000/dsk6713/include/dsk6713_led.h: 
+../DebugTools.h: 
+C:/TI_DSK/ccsv6/tools/compiler/c6000_7.4.8/include/stdio.h: 
+C:/TI_DSK/ccsv6/tools/compiler/c6000_7.4.8/include/c6x.h: 
+C:/TI_DSK/ccsv6/tools/compiler/c6000_7.4.8/include/math.h: 
+../MathCalculations.h: 
+C:/TI_DSK/ccsv6/tools/compiler/c6000_7.4.8/include/stdio.h: 
+C:/TI_DSK/ccsv6/tools/compiler/c6000_7.4.8/include/c6x.h: 
+C:/TI_DSK/ccsv6/tools/compiler/c6000_7.4.8/include/math.h: 
+../MathCalculations.h: 
+../time_stamper_master.h: 

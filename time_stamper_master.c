@@ -18,94 +18,6 @@
  *	Revision Name:		Hurr durr I'ma sheep
  *************************************************************************/
 
-//Because
-#define CHIP_6713 1
-
-//Board node definitions
-#define MASTER_NODE 1
-#define SLAVE_NODE 	2
-
-//Node type - This changes whether setting 
-#define NODE_TYPE SLAVE_NODE
-
-//Audio codec sample frequency
-#define DSK_SAMPLE_FREQ DSK6713_AIC23_FREQ_8KHZ
-
-//If use floating point fixes
-#define USE_FDE 0
-
-// length of searching window in samples
-#define M 60
-
-// threshold value for searching window
-#define T1 100000
-
-// sinc pulse normalized bandwidth
-#define BW 0.0125 //100Hz@8KhzFs
-
-// 2*N+1 is the number of samples in the sinc function
-#define N (1 << 9) //512
-#define N2 ((N*2)+1) //1025
-
-// virtual clock counter maximum
-/*
-#if (NODE_TYPE == MASTER_NODE)
-#define LARGE_VCLK_MAX (1<<12)	//4096
-#elif (NODE_TYPE == SLAVE_NODE)
-#define LARGE_VCLK_MAX (1<<14) //4096
-#endif
-*/
-#define LARGE_VCLK_MAX (1<<14) //16384 counts, never reaches this
-#define SMALL_VCLK_MAX (1<<12) //4096 counts
-
-#define LARGE_VCLK_WRAP(i) ((i)&(LARGE_VCLK_MAX-1))
-#define SMALL_VCLK_WRAP(i) ((i)&(SMALL_VCLK_MAX-1))
-
-
-//#define SLAVE_PULSE_COUNTER_MIN (-(LARGE_VCLK_MAX*2))
-//#define SLAVE_PULSE_COUNTER_MAX (LARGE_VCLK_MAX*2)
-//Don't matter now
-
-
-// max lag for computing correlations
-#define MAXLAG 200
-
-// number of coarse delays to store
-#define MAX_STORED_DELAYS_COARSE 16
-#define MAX_STORED_DELAYS_FINE 	 16
-
-//Response buffer size in samples
-//#define OUTPUT_BUF_SIZE (2*N+1)
-//Instead, use N2 for everything. EVERYTHING.
-
-// maximum sample value
-#define MAXSAMP 32767;
-
-//Define channel numbers for audio codec union variable
-#define CHANNEL_LEFT 0
-#define CHANNEL_RIGHT 1
-
-//Define master/slave channels
-#define TRANSMIT_SINC	CHANNEL_LEFT	//Channel along which the transmission sinc pulse is sent
-#define RECEIVE_SINC	CHANNEL_LEFT	//Corresponding receive channel on the other end
-#define TRANSMIT_CLOCK	CHANNEL_RIGHT	//Verification clock output that centers along the zero-point of the vclock
-
-// State definitions
-#define STATE_SEARCHING 0
-#define STATE_RECORDING 1
-#define STATE_CALCULATION 2
-#define STATE_TRANSMIT 3
-
-#define STATE_SEARCHING_TIMEOUT_LIMIT 5 //Can look for 5 wrapped clock periods before we give up
-
-// define PI and INVPI
-#define PI 3.14159265358979323846
-#define INVPI 0.318309886183791
-
-//gpio registers
-#define GPIO_ENABLE_ADDRESS		0x01B00000
-#define GPIO_DIRECTION_ADDRESS	0x01B00004
-#define GPIO_VALUE_ADDRESS		0x01B00008
 
 #include <stdio.h>					//For printf
 #include <stdint.h>
@@ -120,50 +32,19 @@
 #include "dsk6713_aic23.h"
 #include "dsk6713_led.h"
 
+#include "DebugTools.h"
+#include "MathCalculations.h"
+#include "time_stamper_master.h"
+
 // ------------------------------------------
 // start of variables
 // ------------------------------------------
 
-//Calculation Variables
-float buf[M];       	// search buffer
-float matchedFilterCosine[M];			// in-phase correlation buffer
-float matchedFilterSine[M];       	// quadrature correlation buffer
-float corr_max, corr_max_s, corr_max_c; // correlation variables
-float corr_c[2*M];
-float corr_s[2*M];
-float s[2*M];
-short corr_max_lag;
-short bufindex = 0;
-float corrSumCosine,corrSumSine,corrSumIncoherent;
-short i,j,k;				// Indices
-double t,x,y;				// More Indices
-float basebandSincRef[2*N+1];   		// baseband sinc pulse buffer
-float recbuf[2*N+2*M]; 		// recording buffer
-float downMixedCosine[2*N+2*M];     		// in-phase downmixed buffer
-float downMixedSine[2*N+2*M];     		// quadrature downmixed buffer
-short recbufindex = 0;		//
-
-#if (NODE_TYPE == MASTER_NODE)//if master, listen to slave first and then send the sinc back
-volatile int state = STATE_SEARCHING;
-#elif (NODE_TYPE == SLAVE_NODE)//if slave, send sinc and then wait for master's response
-volatile int state = STATE_TRANSMIT;
-#endif
-
 volatile short vclock_counter = 0; // virtual clock counter
-volatile short recbuf_start_clock = 0; // virtual clock counter for first sample in recording buffer
-short coarse_delay_estimate[MAX_STORED_DELAYS_COARSE];
-float fine_delay_estimate[MAX_STORED_DELAYS_FINE];
-short cde_index = 0;
-short fde_index = 0;
-volatile char local_carrier_phase = 0;
-char r = 0;
-double phase_correction_factor;
-short max_samp = 0;
 
-//Master sinc response variables
-volatile short vir_clock_start;
-volatile short CurTime;
-short halfSinc;
+
+
+//Output waveform buffers for clock and sync channels
 short tClockSincPulse[N2];
 short tVerifSincPulse[N2];
 
@@ -172,6 +53,9 @@ volatile short virClockTransmitCenterVerify = 0;
 
 volatile short virClockTransmitCenterSincIndex = 0;
 volatile short virClockTransmitCenterVerifyIndex = 0;
+
+
+
 
 /**
  * //Next in line buffer so whenever the verification happens on the slave,
@@ -183,9 +67,17 @@ volatile short virClockTransmitCenterVerifyBuffer = 0;
 //volatile short slaveTransmitTimeoutTime = 0; //Switches from receive to transmit state at this time for slave timeout
 volatile short numberOfTimesVerificationPulseSentWithoutUpdate = 0;
 
+short coarse_delay_estimate[MAX_STORED_DELAYS_COARSE];
+float fine_delay_estimate[MAX_STORED_DELAYS_FINE];
+short cde_index = 0;
+short fde_index = 0;
 
-//Slave transmit variables
-//short pulse_counter = SLAVE_PULSE_COUNTER_MIN;
+//State Variables (transmit/receive/calculation)
+#if (NODE_TYPE == MASTER_NODE)//if master, listen to slave first and then send the sinc back
+extern volatile int state = STATE_SEARCHING;
+#elif (NODE_TYPE == SLAVE_NODE)//if slave, send sinc and then wait for master's response
+extern volatile int state = STATE_TRANSMIT;
+#endif
 
 // ISR combos
 union {uint32_t combo; short channel[2];} tempOutput;
@@ -195,56 +87,13 @@ union {uint32_t combo; short channel[2];} tempInput;
 DSK6713_AIC23_CodecHandle hCodec;							// Codec handle
 DSK6713_AIC23_Config config = DSK6713_AIC23_DEFAULTCONFIG;  // Codec configuration with default settings
 
-GPIO_Handle    hGpio; /* GPIO handle */
 
 // ------------------------------------------
 // end of variables
 // ------------------------------------------
 
-//Math function prototypes need to be declared here to be run properly
-double sin(double);
-double cos(double);
-double atan2(double,double);
-float sumFloatArray(float*, short numElmts);
-long sumIntArray(short* array, short numElmts);
 
 interrupt void serialPortRcvISR(void);
-
-//Helper function prototypes
-void SetupTransmitModulatedSincPulseBuffer();
-void SetupReceiveBasebandSincPulseBuffer();
-void SetupReceiveTrigonometricMatchedFilters();
-void runReceivedPulseBufferDownmixing();
-//void runSlaveSincPulseTimingUpdateCalcs();
-void inline ToggleDebugGPIO(short IONum);
-
-//short isSincInSameWindowHuh(short curClock, short delayEstimate);
-
-//short GoodToSendIndex(short counterTime, short centerPoint);
-short GetVerifPulseIndex();
-short GetSincPulseIndex();
-
-//State functions run during ISR
-void runSearchingStateCodeISR();
-void runRecordingStateCodeISR();
-void runCalculationStateCodeISR();
-//void runResponseStateCodeISR();
-//void runSlaveTransmitStateCodeISR();
-void runSincPulseTransmitISR();
-void runVerifyPulseTransmitISR();
-
-
-//State functions run during while() loop
-//void runMasterResponseSincPulseTimingControl();
-void runReceviedSincPulseTimingAnalysis();
-
-//New state functions for new code.
-void calculateNewSynchronizationTimeSlave();
-void calculateNewResponseTimeMaster();
-
-//debug gpio function
-void gpioInit();
-void gpioToggle();
 
 void main()
 {
@@ -298,26 +147,31 @@ void main()
 			//Maybe calculate the question to 42 if we have time
 		}
 		else if (state==STATE_CALCULATION){
+
 			// -----------------------------------------------
 			// this is where we estimate the time of arrival
 			// -----------------------------------------------
-			ToggleDebugGPIO(1);
-			runReceivedPulseBufferDownmixing();
-			runReceviedSincPulseTimingAnalysis();
-			ToggleDebugGPIO(1);
-			//Now we calculate the new center clock
+			ToggleDebugGPIO(1);runReceivedPulseBufferDownmixing();ToggleDebugGPIO(1);
+			ToggleDebugGPIO(2);runReceviedSincPulseTimingAnalysis();ToggleDebugGPIO(2);
 
+			//Now we calculate the new center clock for verification or response sinc
 			#if (NODE_TYPE==MASTER_NODE)
-				calculateNewResponseTimeMaster();
+				calculateNewResponseTimeMaster(vclock_counter, coarse_delay_estimate[cde_index]);
 			#elif (NODE_TYPE==SLAVE_NODE)
-				calculateNewSynchronizationTimeSlave();
+				calculateNewSynchronizationTimeSlave(vclock_counter, coarse_delay_estimate[cde_index]);
 			#endif
+				/**
+				 * \todo change the above to support A. floating point ability when FDE is turned on
+				 * 									 B. actually assign the result to the new center points
+				 */
 
-			state = STATE_TRANSMIT; //go to responding!
 
+			//Enter transmission state after reception
+			state = STATE_TRANSMIT;
 			while(state == STATE_TRANSMIT){
-				//wait for ISR to timeout and switch state
+				//wait for ISR to timeout and switch state for slave, or fully respond as master
 			}
+
 			//increment indices
 			cde_index++;
 			if(cde_index>=MAX_STORED_DELAYS_COARSE) cde_index = 0;
@@ -327,6 +181,13 @@ void main()
 	}
 }
 
+
+/**
+ * @brief ISR for audio codec sample transceive
+ *
+ * Handles logic for taking in a sample from the audio codec, running processing, and then outputting
+ * an appropriate sample straight back into the codec at the same time.
+ */
 interrupt void serialPortRcvISR()
 {
 	tempInput.combo = MCBSP_read(DSK6713_AIC23_DATAHANDLE);
@@ -341,32 +202,26 @@ interrupt void serialPortRcvISR()
 		vclock_counter = 0;
 		ToggleDebugGPIO(0);
 	}
-	else{
-		//Do nothing
-	}
+
 
 	//Logic for different states is the same on both master and slave sides when expecting to receive
-	if (state==STATE_SEARCHING) {
-		runSearchingStateCodeISR();
-		#if (NODE_TYPE==SLAVE_NODE)
-			//if(searchingStateTimeoutSlave())
-				state=STATE_TRANSMIT;
-		#endif
+	if (state==		STATE_SEARCHING) {
+		runSearchingStateCodeISR(); //Possibly timeout to transmit as slave
 	}
 	else if (state==STATE_RECORDING) {
 		runRecordingStateCodeISR();
 	}
-	else if(state==STATE_CALCULATION){
+	else if(state==	STATE_CALCULATION){
 		runCalculationStateCodeISR();
 	}
-	else if(state==STATE_TRANSMIT){
-		runSincPulseTransmitISR();//this function will change state when it's done
+	else if(state==	STATE_TRANSMIT){
+		runSincPulseTransmitISR();	//this function will change system state when it's done
 	}
 	else {
 		//ERROR in STATE CODE LOGIC
 	}
-	//Always
-		runVerifyPulseTransmitISR();	//Outputs synchronized pulse on aux channel
+	//Always Outputs synchronized pulse on aux channel
+		runVerifyPulseTransmitISR();
 		
 
 	//Write the output sample to the audio codec
@@ -386,7 +241,8 @@ void SetupTransmitModulatedSincPulseBuffer(){
 			y = cos(2*PI*t)*(sin(PI*x)/(PI*x)); // modulated sinc pulse at carrier freq = fs/4
 		else
 			y = 1;								//x = 0 case.
-		tModulatedSincPulse[i+N] = y*32767;
+		tClockSincPulse[i+N] = y*32767;			//Both of these  may be modified in the future calculations anywas
+		tVerifSincPulse[i+N] = y*32767;			//If FDE mode is on in order to do partial synchronization
 	}
 }
 /**
@@ -418,75 +274,6 @@ void SetupReceiveTrigonometricMatchedFilters(){
 
 
 /**
-	Not sure what this does again now
-*/
-/*
-void runMasterResponseSincPulseTimingControl(){
-	// --- Prepare for Response State ---
-	union {Uint32 combo; short channel[2];} temp;
-	temp.combo = 0; //Set to zero now for missed sets.
-
-	response_done = 0; //not done yet
-	response_buf_idx = 0; //index for output buffer
-
-#if (NODE_TYPE==MASTER_NODE)
-	//Wrap start timer around virtual clock origin.
-	vir_clock_start = CLOCK_WRAP(LARGE_VCLK_MAX - CLOCK_WRAP(coarse_delay_estimate[cde_index]) - N2); //start time  //cde_index-1 -> take most recent estimate
-	//course delay estimate wraps with respect to LARGE_VCLK_MAX, I dont think that's good?
-
-	if(CLOCK_WRAP(coarse_delay_estimate[cde_index])>vclock_counter){//i dont think this triggers ever
-		//temp.channel[0] = 25000;
-		//MCBSP_write(DSK6713_AIC23_DATAHANDLE, temp.combo);
-
-		if(vclock_counter==0){
-			while(vclock_counter != (LARGE_VCLK_MAX-1)) ;
-		}else
-			while(vclock_counter != 0) ;
-	}
-
-	if(CurTime > vir_clock_start){//i dont think this triggers ever
-		//temp.channel[0] = -15000;
-		//MCBSP_write(DSK6713_AIC23_DATAHANDLE, temp.combo);
-		ToggleDebugGPIO(0);
-
-
-
-		if(vclock_counter==0){
-				v_clk[0]=666;
-			v_clk[1]=vclock_counter;
-			while(vclock_counter != (LARGE_VCLK_MAX-1)) ;
-			while(vclock_counter != (LARGE_VCLK_MAX-1)) ;
-
-
-		}
-		else{
-			while(vclock_counter != 0); //wait one additional tick because we've already passed previous starting point we need
-			while(vclock_counter != 0); //wait one additional tick because we've already passed previous starting point we need
-		}
-	}
-
-	while(vclock_counter != 0) ; //wait one additional tick because we've already passed previous starting point we need
-
-	state = STATE_TRANSMIT; //set to response for the ISR to pick the appropriate path
-
-	while(state == STATE_TRANSMIT) ; //Loop and wait here until the responding output code works
-#elif (NODE_TYPE==SLAVE_NODE)
-
-	vir_clock_start = CLOCK_WRAP(CLOCK_WRAP(coarse_delay_estimate[cde_index])+ N); //start time  //cde_index-1 -> take most recent estimate
-
-	while(vclock_counter != vir_clock_start) ;
-
-	//temp.channel[TRANSMIT_CLOCK] = -15000;
-	//MCBSP_write(DSK6713_AIC23_DATAHANDLE, temp.combo);
-
-
-
-#endif
-}
-*/
-
-
-/**
  * Handles the searching for peak function of the incoming waveform
  */
 void runSearchingStateCodeISR(){
@@ -508,7 +295,7 @@ void runSearchingStateCodeISR(){
 	}
 	corrSumIncoherent = corrSumCosine*corrSumCosine+corrSumSine*corrSumSine;
 
-	if (corrSumIncoherent>T1) {  // xxx should make sure this runs in real-time
+	if (corrSumIncoherent>T1) {  // should make sure this runs in real-time
 		state = STATE_RECORDING; // enter "recording" state (takes effect in next interrupt)
 		recbuf_start_clock = vclock_counter - M; // virtual clock tick at at start of recording buffer
 												 // (might be negative but doesn't matter)
@@ -523,6 +310,7 @@ void runSearchingStateCodeISR(){
 		}
 	}
 }
+
 /**
  * Saves the incoming waveform data to the receive buffer for later processing in the main loop
  */
@@ -531,222 +319,16 @@ void runRecordingStateCodeISR(){
 	recbuf[recbufindex] = (float) tempInput.channel[RECEIVE_SINC];  // right channel
 	recbufindex++;
 	if (recbufindex>=(2*N+2*M)) {
-		CurTime = vclock_counter;
 		state = STATE_CALCULATION;  // buffer is full (stop recording)
 		recbufindex = 0; // shouldn't be necessary
 	}
 }
+
 /**
  * Placeholder to do nothing. Calculations are supposed to be ongoing in the main loop
  */
 void runCalculationStateCodeISR(){
 	//Do nothing here
-}
-
-
-
-/**
- * Calculates the delay estimates
- * Stores the results in the coarse_delay_estimate and fine_delay_estimate buffers
- */
-void runReceviedSincPulseTimingAnalysis(){
-	// this is where we apply the matched filter
-	// we only do this over a limited range
-	for (i=0;i<=(2*M-1);i++) {
-		corr_c[i] = 0;
-		corr_s[i] = 0;
-		for (j=0;j<(2*N+1);j++) {
-			corr_c[i] += basebandSincRef[j]*downMixedCosine[j+i];
-			corr_s[i] += basebandSincRef[j]*downMixedSine[j+i];
-		}
-		s[i] = corr_c[i]*corr_c[i]+corr_s[i]*corr_s[i];  // noncoherent correlation metric
-	}
-
-	// now find the peak
-	corr_max = 0;
-	corr_max_lag = 0;
-	for (i=0;i<=(2*M-1);i++) {
-		if (s[i]>corr_max){
-			corr_max = s[i];
-			corr_max_lag = i;
-		}
-	}
-	corr_max_c = corr_c[corr_max_lag];
-	corr_max_s = corr_s[corr_max_lag];
-
-	//printf wrecks the real-time operation
-	//printf("Max lag: %d\n",corr_max_lag);
-	//printf("Coarse delay estimate: %d.\n",recbuf_start_clock+corr_max_lag);
-
-	// store coarse delay estimates
-	coarse_delay_estimate[cde_index] = recbuf_start_clock+corr_max_lag;
-
-	// fine delay estimate
-	y = (double) corr_max_s;
-	x = (double) corr_max_c;
-	phase_correction_factor = atan2(y,x)*2*INVPI; // phase
-	r = (recbuf_start_clock+corr_max_lag) & 3; // compute remainder
-	if (r==0)
-		fine_delay_estimate[fde_index] = recbuf_start_clock+corr_max_lag+phase_correction_factor;
-	else if (r==1)
-		fine_delay_estimate[fde_index] = recbuf_start_clock+corr_max_lag+phase_correction_factor-1;
-	else if (r==2) {
-		if (phase_correction_factor>0)
-			fine_delay_estimate[fde_index] = recbuf_start_clock+corr_max_lag+phase_correction_factor-2;
-		else
-			fine_delay_estimate[fde_index] = recbuf_start_clock+corr_max_lag+phase_correction_factor+2;
-	}
-	else if (r==3)
-		fine_delay_estimate[fde_index] = recbuf_start_clock+corr_max_lag+phase_correction_factor+1;
-	else
-		printf("ERROR");
-
-	// --- Calculations Finished ---
-}
-
-/**
- * Mixes the received waveform in recbuf down to baseband. ONLY WORKS at currently set center freq (1/2 of nyquist)
- */
-void runReceivedPulseBufferDownmixing(){
-	// downmix (had problems using sin/cos here so used a trick)
-	// The trick is based on the incoming frequency per sample being (n * pi/2), so every other sample goes to zero.
-	for (i=0;i<(2*N+2*M);i+=4){
-		downMixedCosine[i] = recbuf[i];
-		downMixedSine[i] = 0;
-	}
-	for (i=1;i<(2*N+2*M);i+=4){
-		downMixedCosine[i] = 0;
-		downMixedSine[i] = recbuf[i];
-	}
-	for (i=2;i<(2*N+2*M);i+=4){
-		downMixedCosine[i] = -recbuf[i];
-		downMixedSine[i] = 0;
-	}
-	for (i=3;i<(2*N+2*M);i+=4){
-		downMixedCosine[i] = 0;
-		downMixedSine[i] = -recbuf[i];
-	}
-}
-
-/**
- * Initializes the GPIO registers to allow for toggling some of them to view the state change outputs
- */
-void gpioInit()
-{
-	//--------------NOTE------------------
-	//	FOR GPIOs TO WORK ON C6713 DSK SPECTRUM DIGITAL BOARD
-	//	SWITCH 4 OF THE DIPSWITCH SW3 (NOT SW1!!!) HAS TO BE ON-CLOSED
-	//--------------NOTE------------------
-
-	GPIO_Config MyConfig = {
-	0x00000000, /* gpgc */
-	0x0000FFFF, /* gpen --*/
-	0x00000000, /* gdir -*/
-	0x00000000, /* gpval */
-	0x00000000, /* gphm all interrupts disabled for io pins */
-	0x00000000, /* gplm all interrupts to cpu or edma disabled  */
-	0x00000000  /* gppol -- default state */
-	};
-	hGpio  = GPIO_open( GPIO_DEV0, GPIO_OPEN_RESET );
-	GPIO_config(hGpio  , &MyConfig );
-	/* Enables pins */
-	GPIO_pinEnable (hGpio,GPIO_PIN0| GPIO_PIN1 | GPIO_PIN2 | GPIO_PIN3 | GPIO_PIN4 | GPIO_PIN5);//enable here or in MyConfig
-	/* Sets Pin0, Pin1, and Pin2 as an output pins. */
-	int Current_dir = GPIO_pinDirection(hGpio,GPIO_PIN0, GPIO_OUTPUT);
-	Current_dir = GPIO_pinDirection(hGpio,GPIO_PIN1, GPIO_OUTPUT);
-	Current_dir = GPIO_pinDirection(hGpio,GPIO_PIN2, GPIO_OUTPUT);
-	Current_dir = GPIO_pinDirection(hGpio,GPIO_PIN3, GPIO_OUTPUT);
-	Current_dir = GPIO_pinDirection(hGpio,GPIO_PIN4, GPIO_OUTPUT);
-	Current_dir = GPIO_pinDirection(hGpio,GPIO_PIN5, GPIO_OUTPUT);
-}
-
-/**
- *	Toggles a GPIO pin specified twice to produce a short pulse to monitor
- *
- *
- */
-void gpioToggle()
-{
-	while(1)
-	{
-		GPIO_pinWrite( hGpio, GPIO_PIN0, 0 );
-		GPIO_pinWrite( hGpio, GPIO_PIN1, 0 );
-		*((int*)GPIO_VALUE_ADDRESS) = 255;
-		DSK6713_waitusec(500000);
-		GPIO_pinWrite( hGpio, GPIO_PIN0, 1 );
-		GPIO_pinWrite( hGpio, GPIO_PIN1, 1 );
-		*((int*)GPIO_VALUE_ADDRESS) = 0;
-		DSK6713_waitusec(500000);
-
-
-	}
-}
-
-
-/**
- * Sums up an array of floats to produce the sum
- * @param array	The array to sum
- * @param numElmts Number of elements to sum
- * @return The sum
- */
-float sumFloatArray(float* array, short numElmts){
-	float sum = 0.0;
-	short idx = 0;
-	for(idx=0; idx < numElmts; idx++){
-		sum += array[idx];
-	}
-	return sum;
-}
-
-/**
- * Sums an array of integers and returns the result
- * @param array pointer to array of values
- * @param numElmts
- * @return the sum of the array. In long format to prevent overflow
- */
-long sumIntArray(short* array, short numElmts){
-	long sum = 0;
-	short idx = 0;
-	for(idx=0; idx < numElmts; idx++){
-		sum += (long)array[idx];
-	}
-	return sum;
-}
-
-
-
-/**	\brief Quickly toggles a set pin number high and then low again, for timing view
- *
- * @param IONum Pin number to toggle (0-3 currently)
- */
-void inline ToggleDebugGPIO(short IONum){
-	if (IONum == 0){
-		GPIO_pinWrite(hGpio,GPIO_PIN0,1);
-		GPIO_pinWrite(hGpio,GPIO_PIN0,0);
-	}
-	else if(IONum == 1){
-		GPIO_pinWrite(hGpio,GPIO_PIN1, 1);
-		GPIO_pinWrite(hGpio,GPIO_PIN1, 0);
-	}
-	else if(IONum == 2){
-		GPIO_pinWrite(hGpio,GPIO_PIN2, 1);
-		GPIO_pinWrite(hGpio,GPIO_PIN2, 0);
-	}
-	else if(IONum == 3){
-		GPIO_pinWrite(hGpio,GPIO_PIN3, 1);
-		GPIO_pinWrite(hGpio,GPIO_PIN3, 0);
-	}
-	else if(IONum == 4){
-		GPIO_pinWrite(hGpio,GPIO_PIN4, 1);
-		GPIO_pinWrite(hGpio,GPIO_PIN4, 0);
-	}
-	else if(IONum == 5){
-		GPIO_pinWrite(hGpio,GPIO_PIN5, 1);
-		GPIO_pinWrite(hGpio,GPIO_PIN5, 0);
-	}
-	else{
-		//error
-	}
 }
 
 /**
@@ -773,7 +355,7 @@ void runSincPulseTransmitISR(){
 void runVerifyPulseTransmitISR(){
 	short idxTemp = GetVerifPulseIndex(vclock_counter, SMALL_VCLK_WRAP(virClockTransmitCenterVerify));
 	if(idxTemp != -1){
-		tempOutput.channel[TRANSMIT_CLOCK] = tVerificationSincPulse[idxTemp];
+		tempOutput.channel[TRANSMIT_CLOCK] = tVerifSincPulse[idxTemp];
 	}
 	else{
 		tempOutput.channel[TRANSMIT_CLOCK] = 0;
@@ -781,45 +363,7 @@ void runVerifyPulseTransmitISR(){
 }
 
 
-/**
- * Looks at the received response time, the current time (to prevent trying to send immediately a fractional waveform,
- * and calculates the new mirrored center time around a clock tick upon which to center the response at
- */
-void calculateNewResponseTimeMaster(){
-	virClockTransmitCenterSinc = 0; //placeholder
-}
 
-/**
- *
- */
-void calculateNewSynchronizationTimeSlave(){
-	virClockTransmitCenterVerify = 0; //placeholder
-}
-
-/**
- *	Responds with the buffer index for transmitting the output synchronization sinc pulse
- *	Essentially looks at the virClockTransmitCenterSinc variable, and subtracts and wraps
- *
- *
- */
-short GetSincPulseIndex(){
-
-
-}
-
-/**
- *	Responds with the buffer index for transmitting the output verification sinc pulse
- *
- *	Variables it looks at:
- *	virClockTransmitCenterVerify
- *	SMALL_VCLK_WRAP(vclock_counter)
- *	N 							(to find when to start/stop)
- *
- *
- */
-short GetVerifPulseIndex(){
-
-}
 
 
 
