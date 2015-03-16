@@ -31,6 +31,9 @@
 //Audio codec sample frequency
 #define DSK_SAMPLE_FREQ DSK6713_AIC23_FREQ_8KHZ
 
+//If use floating point fixes
+#define USE_FDE 0
+
 // length of searching window in samples
 #define M 60
 
@@ -47,18 +50,20 @@
 // virtual clock counter maximum
 /*
 #if (NODE_TYPE == MASTER_NODE)
-#define VCLK_MAX (1<<12)	//4096
+#define LARGE_VCLK_MAX (1<<12)	//4096
 #elif (NODE_TYPE == SLAVE_NODE)
-#define VCLK_MAX (1<<14) //4096
+#define LARGE_VCLK_MAX (1<<14) //4096
 #endif
 */
-#define VCLK_MAX (3<<13) //24576 counts, never reaches this
-#define VCLK_MAX_WRAPPED (1<<12) //4096 counts
+#define LARGE_VCLK_MAX (1<<14) //16384 counts, never reaches this
+#define SMALL_VCLK_MAX (1<<12) //4096 counts
 
-#define VCLK_WRAP(i) ((i)&(VCLK_MAX_WRAPPED-1))
+#define LARGE_VCLK_WRAP(i) ((i)&(LARGE_VCLK_MAX-1))
+#define SMALL_VCLK_WRAP(i) ((i)&(SMALL_VCLK_MAX-1))
 
-//#define SLAVE_PULSE_COUNTER_MIN (-(VCLK_MAX*2))
-//#define SLAVE_PULSE_COUNTER_MAX (VCLK_MAX*2)
+
+//#define SLAVE_PULSE_COUNTER_MIN (-(LARGE_VCLK_MAX*2))
+//#define SLAVE_PULSE_COUNTER_MAX (LARGE_VCLK_MAX*2)
 //Don't matter now
 
 
@@ -161,20 +166,13 @@ volatile short CurTime;
 short halfSinc;
 short tClockSincPulse[N2];
 short tVerifSincPulse[N2];
-volatile short response_done = 0; 						//not done var for response state
-//volatile short response_buf_idx = 0; 					//index for output buffer
-//volatile short response_buf_idx_max = OUTPUT_BUF_SIZE;
-volatile short amSending = 0;			//control var for starting the sending of the response from master
-volatile short sinc_launch = 0;
-volatile short sinc_roundtrip_time ;
-volatile short vclock_offset ;
-volatile short ClockPulse = 0;							//Used for generating the master clock pulse output value
-//volatile short calculation_done = 0;		//debug
-//volatile short v_clk[3];					//debug
-
 
 volatile short virClockTransmitCenterSinc = 0;
 volatile short virClockTransmitCenterVerify = 0;
+
+volatile short virClockTransmitCenterSincIndex = 0;
+volatile short virClockTransmitCenterVerifyIndex = 0;
+
 /**
  * //Next in line buffer so whenever the verification happens on the slave,
  * The current output waveform is not clipped or shifted improperly. Calculations should update this,
@@ -339,7 +337,7 @@ interrupt void serialPortRcvISR()
 	//Clock counter wrap
 	vclock_counter++; //Note! --- Not sure of the effects of moving the increment to the top
 	//Code should be common to both
-	if(vclock_counter >= VCLK_MAX){
+	if(vclock_counter >= LARGE_VCLK_MAX){
 		vclock_counter = 0;
 		ToggleDebugGPIO(0);
 	}
@@ -433,15 +431,15 @@ void runMasterResponseSincPulseTimingControl(){
 
 #if (NODE_TYPE==MASTER_NODE)
 	//Wrap start timer around virtual clock origin.
-	vir_clock_start = CLOCK_WRAP(VCLK_MAX - CLOCK_WRAP(coarse_delay_estimate[cde_index]) - N2); //start time  //cde_index-1 -> take most recent estimate
-	//course delay estimate wraps with respect to VCLK_MAX, I dont think that's good?
+	vir_clock_start = CLOCK_WRAP(LARGE_VCLK_MAX - CLOCK_WRAP(coarse_delay_estimate[cde_index]) - N2); //start time  //cde_index-1 -> take most recent estimate
+	//course delay estimate wraps with respect to LARGE_VCLK_MAX, I dont think that's good?
 
 	if(CLOCK_WRAP(coarse_delay_estimate[cde_index])>vclock_counter){//i dont think this triggers ever
 		//temp.channel[0] = 25000;
 		//MCBSP_write(DSK6713_AIC23_DATAHANDLE, temp.combo);
 
 		if(vclock_counter==0){
-			while(vclock_counter != (VCLK_MAX-1)) ;
+			while(vclock_counter != (LARGE_VCLK_MAX-1)) ;
 		}else
 			while(vclock_counter != 0) ;
 	}
@@ -456,8 +454,8 @@ void runMasterResponseSincPulseTimingControl(){
 		if(vclock_counter==0){
 				v_clk[0]=666;
 			v_clk[1]=vclock_counter;
-			while(vclock_counter != (VCLK_MAX-1)) ;
-			while(vclock_counter != (VCLK_MAX-1)) ;
+			while(vclock_counter != (LARGE_VCLK_MAX-1)) ;
+			while(vclock_counter != (LARGE_VCLK_MAX-1)) ;
 
 
 		}
@@ -773,7 +771,7 @@ void runSincPulseTransmitISR(){
  *	and the new observed synchronized time pulse for the slave
  */
 void runVerifyPulseTransmitISR(){
-	short idxTemp = GetVerifPulseIndex(vclock_counter, VCLK_WRAP(virClockTransmitCenterVerify));
+	short idxTemp = GetVerifPulseIndex(vclock_counter, SMALL_VCLK_WRAP(virClockTransmitCenterVerify));
 	if(idxTemp != -1){
 		tempOutput.channel[TRANSMIT_CLOCK] = tVerificationSincPulse[idxTemp];
 	}
@@ -799,11 +797,31 @@ void calculateNewSynchronizationTimeSlave(){
 }
 
 /**
+ *	Responds with the buffer index for transmitting the output synchronization sinc pulse
+ *	Essentially looks at the virClockTransmitCenterSinc variable, and subtracts and wraps
+ *
+ *
+ */
+short GetSincPulseIndex(){
+
+
+}
+
+/**
+ *	Responds with the buffer index for transmitting the output verification sinc pulse
+ *
+ *	Variables it looks at:
+ *	virClockTransmitCenterVerify
+ *	SMALL_VCLK_WRAP(vclock_counter)
+ *	N 							(to find when to start/stop)
+ *
  *
  */
 short GetVerifPulseIndex(){
 
 }
-short GetSincPulseIndex(){
 
-}
+
+
+
+
