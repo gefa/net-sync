@@ -26,7 +26,7 @@
 #define SLAVE_NODE 	2
 
 //Node type - This changes whether setting
-#define NODE_TYPE MASTER_NODE
+#define NODE_TYPE SLAVE_NODE
 
 //Audio codec sample frequency
 #define DSK_SAMPLE_FREQ DSK6713_AIC23_FREQ_8KHZ
@@ -170,6 +170,7 @@ short halfSinc;
 short tModulatedSincPulse[OUTPUT_BUF_SIZE];
 volatile short response_done = 0; 						//not done var for response state
 volatile short response_buf_idx = 0; 					//index for output buffer
+volatile short response_buf_idx_clk = 0; 					//another index for output buffer
 volatile short response_buf_idx_max = OUTPUT_BUF_SIZE;
 volatile short amSending = 0;			//control var for starting the sending of the response from master
 volatile short sinc_launch = 0;
@@ -178,6 +179,7 @@ volatile short vclock_offset ;
 volatile short ClockPulse = 0;							//Used for generating the master clock pulse output value
 volatile short calculation_done = 0;		//debug
 volatile short v_clk[3];					//debug
+volatile short clk_flag = 0;
 
 //Slave transmit variables
 //short pulse_counter = SLAVE_PULSE_COUNTER_MIN;
@@ -231,6 +233,7 @@ void runSearchingStateCodeISR();
 void runRecordingStateCodeISR();
 void runCalculationStateCodeISR();
 void runResponseStateCodeISR();
+void runResponseClkSinc();
 
 
 //State functions run during while() loop
@@ -442,7 +445,8 @@ interrupt void serialPortRcvISR()
 	#if (NODE_TYPE==MASTER_NODE)
 		if (vclock_counter>=(VCLK_MAX)) {
 			vclock_counter = 0; // wrap
-			tempOutput.channel[TRANSMIT_CLOCK] = 32000; //Left channel for debug, doesn't really do anything
+			//tempOutput.channel[TRANSMIT_CLOCK] = 32000; //Left channel for debug, doesn't really do anything
+			clk_flag = 1;
 		}
 		else{
 			tempOutput.channel[TRANSMIT_CLOCK] = 0; //Left channel for debug, doesn't really do anything
@@ -451,7 +455,8 @@ interrupt void serialPortRcvISR()
 	#elif(NODE_TYPE==SLAVE_NODE)
 		if (vclock_counter>=(VCLK_MAX)){ //runs at 1/2x rate of master for clock pulses, might want to switch variables?
 			vclock_counter = 0;
-			tempOutput.channel[TRANSMIT_CLOCK] = 32000;
+			//tempOutput.channel[TRANSMIT_CLOCK] = 32000;
+			clk_flag = 1;
 			sinc_launch++;
 		}
 		else{
@@ -515,6 +520,9 @@ interrupt void serialPortRcvISR()
 		}
 
 	#endif
+
+	if(clk_flag)
+		runResponseClkSinc();
 
 	//Write the output sample to the audio codec
 	MCBSP_write(DSK6713_AIC23_DATAHANDLE, tempOutput.combo);
@@ -703,6 +711,18 @@ void runResponseStateCodeISR(){
 	}
 }
 
+void runResponseClkSinc(){
+
+	tempOutput.channel[TRANSMIT_CLOCK] = tModulatedSincPulse[response_buf_idx_clk];
+	response_buf_idx_clk++;
+
+	if(response_buf_idx_clk==response_buf_idx_max){
+		clk_flag = 0;
+		response_buf_idx_clk = 0;
+
+	}
+}
+
 void runReceviedSincPulseTimingAnalysis(){
 	// this is where we apply the matched filter
 	// we only do this over a limited range
@@ -888,4 +908,3 @@ void ToggleDebugGPIO(short IONum){
 		//error
 	}
 }
-
