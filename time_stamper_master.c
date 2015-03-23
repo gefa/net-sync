@@ -26,7 +26,7 @@
 #define SLAVE_NODE 	2
 
 //Node type - This changes whether setting
-#define NODE_TYPE SLAVE_NODE
+#define NODE_TYPE MASTER_NODE
 
 //Audio codec sample frequency
 #define DSK_SAMPLE_FREQ DSK6713_AIC23_FREQ_8KHZ
@@ -315,12 +315,16 @@ void main()
 				volatile short tick_center_point = CLOCK_WRAP(coarse_delay_estimate[cde_index]);//this does not need to be an array
 				volatile short complement_course_estimate = VCLK_MAX - tick_center_point;
 
-//				if(tick_center_point > tick_variable)
-//				{
-//					dedicated_clk = complement_course_estimate + tick_variable;
-//				}else{
-//					dedicated_clk = tick_variable - tick_center_point;
-//				}
+
+				// WE ASSUME THAT dedicated_clk > 0, FOR SOME MORE POWERFUL DSP-s IT MIGHT NOT BE THE CASE
+				volatile short dedicated_clk;
+
+				if(tick_center_point > tick_variable)
+				{
+					dedicated_clk = complement_course_estimate + tick_variable - N;
+				}else{
+					dedicated_clk = tick_variable - tick_center_point - N;
+				}
 //
 //				// wait for fixed time after sinc center peak
 //				while(dedicated_clk <= WIDTH15)	;
@@ -341,13 +345,13 @@ void main()
 //					while(vclock_counter != 1); //wait for ISR
 //					while(vclock_counter != 0); //wait one additional tick
 
-				}else if(tick_fixed>0 && tick_fixed<=CALC_TIME){
+				}else if(tick_fixed>0 && tick_fixed<=dedicated_clk){
 					// wait 2 overflows
 					while(vclock_counter != 0); //wait one additional tick
 					while(vclock_counter != 1); //wait for ISR
 					while(vclock_counter != 0); //wait one additional tick
 
-				}else if(tick_fixed>CALC_TIME){
+				}else if(tick_fixed>dedicated_clk){
 					// wait 1 overflows
 					while(vclock_counter != 0); //wait one additional tick
 
@@ -358,7 +362,7 @@ void main()
 
 				}*/
 
-				vir_clock_start = CLOCK_WRAP(complement_course_estimate - N2);// start half sinc before sinc center peak
+				vir_clock_start = CLOCK_WRAP(complement_course_estimate - N);// start half sinc before sinc center peak
 				// ------------------ end of master specific code
 
 				state = STATE_TRANSMIT; //set to response for the ISR to pick the appropriate path
@@ -403,7 +407,7 @@ void main()
 				//	sinc_roundtrip_time -= VCLK_MAX;
 
 				vclock_offset = sinc_roundtrip_time / 2;
-				vclock_offset = CLOCK_WRAP(vclock_offset+255); //Actually offsets properly
+				vclock_offset = CLOCK_WRAP(vclock_offset); //Actually offsets properly
 				//vclock_offset = CLOCK_WRAP(vclock_offset);
 
 				while (vclock_counter != vclock_offset) ;//wait for master zero
@@ -575,68 +579,68 @@ void SetupReceiveTrigonometricMatchedFilters(){
 /**
 
 */
-void runMasterResponseSincPulseTimingControl(){
-	// --- Prepare for Response State ---
-	union {Uint32 combo; short channel[2];} temp;
-	temp.combo = 0; //Set to zero now for missed sets.
-
-	response_done = 0; //not done yet
-	response_buf_idx = 0; //index for output buffer
-
-#if (NODE_TYPE==MASTER_NODE)
-	//Wrap start timer around virtual clock origin.
-	vir_clock_start = CLOCK_WRAP(VCLK_MAX - CLOCK_WRAP(coarse_delay_estimate[cde_index]) - N2); //start time  //cde_index-1 -> take most recent estimate
-	//course delay estimate wraps with respect to VCLK_MAX, I dont think that's good?
-
-	if(CLOCK_WRAP(coarse_delay_estimate[cde_index])>vclock_counter){//i dont think this triggers ever
-		//temp.channel[0] = 25000;
-		//MCBSP_write(DSK6713_AIC23_DATAHANDLE, temp.combo);
-
-		if(vclock_counter==0){
-			v_clk[0]=666;
-			v_clk[0]=vclock_counter;
-			while(vclock_counter != (VCLK_MAX-1)) ;
-		}else
-			while(vclock_counter != 0) ;
-	}
-
-	if(CurTime > vir_clock_start){//i dont think this triggers ever
-		//temp.channel[0] = -15000;
-		//MCBSP_write(DSK6713_AIC23_DATAHANDLE, temp.combo);
-
-		if(vclock_counter==0){
-				v_clk[0]=666;
-			v_clk[1]=vclock_counter;
-			while(vclock_counter != (VCLK_MAX-1)) ;
-			while(vclock_counter != (VCLK_MAX-1)) ;
-
-
-		}
-		else{
-			while(vclock_counter != 0); //wait one additional tick because we've already passed previous starting point we need
-			while(vclock_counter != 0); //wait one additional tick because we've already passed previous starting point we need
-		}
-	}
-
-	while(vclock_counter != 0) ; //wait one additional tick because we've already passed previous starting point we need
-
-	state = STATE_TRANSMIT; //set to response for the ISR to pick the appropriate path
-	ToggleDebugGPIO(STATE_TRANSMIT);
-
-	while(state == STATE_TRANSMIT) ; //Loop and wait here until the responding output code works
-#elif (NODE_TYPE==SLAVE_NODE)
-
-	vir_clock_start = CLOCK_WRAP(CLOCK_WRAP(coarse_delay_estimate[cde_index])+ N); //start time  //cde_index-1 -> take most recent estimate
-
-	while(vclock_counter != vir_clock_start) ;
-
-	//temp.channel[TRANSMIT_CLOCK] = -15000;
-	//MCBSP_write(DSK6713_AIC23_DATAHANDLE, temp.combo);
-
-
-
-#endif
-}
+//void runMasterResponseSincPulseTimingControl(){
+//	// --- Prepare for Response State ---
+//	union {Uint32 combo; short channel[2];} temp;
+//	temp.combo = 0; //Set to zero now for missed sets.
+//
+//	response_done = 0; //not done yet
+//	response_buf_idx = 0; //index for output buffer
+//
+//#if (NODE_TYPE==MASTER_NODE)
+//	//Wrap start timer around virtual clock origin.
+//	vir_clock_start = CLOCK_WRAP(VCLK_MAX - CLOCK_WRAP(coarse_delay_estimate[cde_index]) - N2); //start time  //cde_index-1 -> take most recent estimate
+//	//course delay estimate wraps with respect to VCLK_MAX, I dont think that's good?
+//
+//	if(CLOCK_WRAP(coarse_delay_estimate[cde_index])>vclock_counter){//i dont think this triggers ever
+//		//temp.channel[0] = 25000;
+//		//MCBSP_write(DSK6713_AIC23_DATAHANDLE, temp.combo);
+//
+//		if(vclock_counter==0){
+//			v_clk[0]=666;
+//			v_clk[0]=vclock_counter;
+//			while(vclock_counter != (VCLK_MAX-1)) ;
+//		}else
+//			while(vclock_counter != 0) ;
+//	}
+//
+//	if(CurTime > vir_clock_start){//i dont think this triggers ever
+//		//temp.channel[0] = -15000;
+//		//MCBSP_write(DSK6713_AIC23_DATAHANDLE, temp.combo);
+//
+//		if(vclock_counter==0){
+//				v_clk[0]=666;
+//			v_clk[1]=vclock_counter;
+//			while(vclock_counter != (VCLK_MAX-1)) ;
+//			while(vclock_counter != (VCLK_MAX-1)) ;
+//
+//
+//		}
+//		else{
+//			while(vclock_counter != 0); //wait one additional tick because we've already passed previous starting point we need
+//			while(vclock_counter != 0); //wait one additional tick because we've already passed previous starting point we need
+//		}
+//	}
+//
+//	while(vclock_counter != 0) ; //wait one additional tick because we've already passed previous starting point we need
+//
+//	state = STATE_TRANSMIT; //set to response for the ISR to pick the appropriate path
+//	ToggleDebugGPIO(STATE_TRANSMIT);
+//
+//	while(state == STATE_TRANSMIT) ; //Loop and wait here until the responding output code works
+//#elif (NODE_TYPE==SLAVE_NODE)
+//
+//	vir_clock_start = CLOCK_WRAP(CLOCK_WRAP(coarse_delay_estimate[cde_index])+ N); //start time  //cde_index-1 -> take most recent estimate
+//
+//	while(vclock_counter != vir_clock_start) ;
+//
+//	//temp.channel[TRANSMIT_CLOCK] = -15000;
+//	//MCBSP_write(DSK6713_AIC23_DATAHANDLE, temp.combo);
+//
+//
+//
+//#endif
+//}
 
 
 void runSearchingStateCodeISR(){
