@@ -26,7 +26,7 @@
 #define SLAVE_NODE 	2
 
 //Node type - This changes whether setting
-#define NODE_TYPE MASTER_NODE
+#define NODE_TYPE SLAVE_NODE
 
 //Audio codec sample frequency
 #define DSK_SAMPLE_FREQ DSK6713_AIC23_FREQ_8KHZ
@@ -148,7 +148,7 @@ volatile int state = STATE_TRANSMIT;
 #endif
 
 volatile short vclock_counter = 0;	// virtual clock counter
-#define age	40960
+//#define age	40960
 //volatile short vclock_counter_history[age];
 volatile short myage = 0;
 volatile short dedicated_clk = 0;	// make decision at fixed time after sinc peak center
@@ -168,6 +168,8 @@ volatile short vir_clock_start;
 volatile short CurTime = 0;
 short halfSinc;
 short tModulatedSincPulse[OUTPUT_BUF_SIZE];
+short tModulatedSincPulse_delayed[OUTPUT_BUF_SIZE];
+volatile short even = 1;
 volatile short response_done = 0; 						//not done var for response state
 volatile short response_buf_idx = 0; 					//index for output buffer
 volatile short response_buf_idx_clk = 0; 					//another index for output buffer
@@ -180,6 +182,11 @@ volatile short ClockPulse = 0;							//Used for generating the master clock puls
 volatile short calculation_done = 0;		//debug
 volatile short v_clk[3];					//debug
 volatile short clk_flag = 0;
+
+#define HISTORY	30
+volatile short debug_history[HISTORY];
+volatile short debug_history2[HISTORY];
+int age=0;
 
 //Slave transmit variables
 //short pulse_counter = SLAVE_PULSE_COUNTER_MIN;
@@ -219,6 +226,7 @@ interrupt void serialPortRcvISR(void);
 
 //Helper function prototypes
 void SetupTransmitModulatedSincPulseBuffer();
+void SetupTransmitModulatedSincPulseBufferDelayed();
 void SetupReceiveBasebandSincPulseBuffer();
 void SetupReceiveTrigonometricMatchedFilters();
 void runReceivedPulseBufferDownmixing();
@@ -257,6 +265,7 @@ void main()
 	SetupReceiveTrigonometricMatchedFilters();
 	SetupReceiveBasebandSincPulseBuffer();
 	SetupTransmitModulatedSincPulseBuffer();
+	SetupTransmitModulatedSincPulseBufferDelayed();
 	// -------- DSK Hardware Setup --------
 
 	DSK6713_init();		// Initialize the board support library, must be called first
@@ -398,20 +407,43 @@ void main()
 //				vclock_offset = sinc_roundtrip_time / 2;					// divide by two
 
 				// alternative way - portable code
-				volatile short tick_variable = vclock_counter;//variable tick
+				//volatile short tick_variable = vclock_counter;//variable tick
 				volatile short tick_center_point = CLOCK_WRAP(coarse_delay_estimate[cde_index]);//this does not need to be an array
 
-				volatile short sinc_roundtrip_time = sinc_launch*VCLK_MAX + tick_center_point;
+				//patch for error when tick_center_point=0 once in a while
+				//if(tick_center_point!=0)
+				{
+
+				volatile short sinc_roundtrip_time = sinc_launch*VCLK_MAX + tick_center_point + (VCLK_MAX>>1);
+
+				//if(sinc_launch==0)
+				//	sinc_launch=0;
+
 
 				//if(tick_variable<tick_center_point)
 				//	sinc_roundtrip_time -= VCLK_MAX;
 
-				vclock_offset = sinc_roundtrip_time / 2;
-				vclock_offset = CLOCK_WRAP(vclock_offset); //Actually offsets properly
+				debug_history[age]=tick_center_point;
+				debug_history2[age]=sinc_roundtrip_time;
+				age++;
+				if(age==HISTORY)
+					age=0;
+
+				if((sinc_roundtrip_time & 1)==0)//if even
+					even = 1;
+				else
+					even = 0;
+
+				vclock_offset = sinc_roundtrip_time>>1;//divide by 2
+				vclock_offset = CLOCK_WRAP(vclock_offset-1); //Actually offsets properly
 				//vclock_offset = CLOCK_WRAP(vclock_offset);
+
+
 
 				while (vclock_counter != vclock_offset) ;//wait for master zero
 				vclock_counter = VCLK_MAX; //correct the vclock
+
+				}
 
 				while(state == STATE_CALCULATION){//wait for ISR to timeout and switch state
 //					debugOutput.channel[TRANSMIT_SINC] = sinc_roundtrip_time;
@@ -514,7 +546,7 @@ interrupt void serialPortRcvISR()
 		}
 		else if(state==STATE_TRANSMIT){
 			// transmit initial sinc to master (beg for some precision)
-			vir_clock_start = VCLK_MAX-N;	// subject to change
+			vir_clock_start = VCLK_MAX-N-(VCLK_MAX>>1);	// subject to change
 
 			runResponseStateCodeISR();//this function will change state when it's done
 
@@ -539,8 +571,8 @@ interrupt void serialPortRcvISR()
 void SetupTransmitModulatedSincPulseBuffer(){
 
 	for (i=-N;i<=N;i++){
-		x = i*BW;
-		t = i*0.25;
+		x = i*BW;//(i+0.5)*BW
+		t = i*0.25;//(i+0.5)*0.25
 		if (i!=0)
 			y = cos(2*PI*t)*(sin(PI*x)/(PI*x)); // modulated sinc pulse at carrier freq = fs/4
 		else
@@ -548,6 +580,24 @@ void SetupTransmitModulatedSincPulseBuffer(){
 		tModulatedSincPulse[i+N] = y*32767;
 	}
 }
+
+/**
+	Sets up the transmit buffer for the sinc pulse modulated at quarter sampling frequency
+	Delayed by half a sample.
+*/
+void SetupTransmitModulatedSincPulseBufferDelayed(){
+
+	for (i=-N;i<=N;i++){
+		x = (i-0.5)*BW;
+		t = (i-0.5)*0.25;
+		//if (i!=0)
+			y = cos(2*PI*t)*(sin(PI*x)/(PI*x)); // modulated sinc pulse at carrier freq = fs/4
+		//else
+		//	y = 1;								//x = 0 case.
+		tModulatedSincPulse_delayed[i+N] = y*32767;
+	}
+}
+
 /**
 	Sets up the buffer used for matched filtering of the sinc pulse
 */
@@ -717,7 +767,11 @@ void runResponseStateCodeISR(){
 
 void runResponseClkSinc(){
 
-	tempOutput.channel[TRANSMIT_CLOCK] = tModulatedSincPulse[response_buf_idx_clk];
+	if(even)
+		tempOutput.channel[TRANSMIT_CLOCK] = tModulatedSincPulse[response_buf_idx_clk];
+	else	//odd
+		tempOutput.channel[TRANSMIT_CLOCK] = tModulatedSincPulse_delayed[response_buf_idx_clk];
+
 	response_buf_idx_clk++;
 
 	if(response_buf_idx_clk==response_buf_idx_max){
