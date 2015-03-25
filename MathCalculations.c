@@ -112,11 +112,12 @@ void runReceviedSincPulseTimingAnalysis(){
  */
 void runReceivedPulseBufferDownmixing(){
 	// downmix (had problems using sin/cos here so used a trick)
-	// The trick is based on the incoming frequency per sample being (n * pi/2), so every other sample goes to zero.
+	/* The trick is based on the incoming frequency per sample being (n * pi/2), so every other sample goes to zero,
+	 * while the non-zero components sin() multiplicative factor is unity/1 */
 	for (i=0;i<(2*N+2*M);i+=4){
 		downMixedCosine[i] = recbuf[i];
 		downMixedSine[i] = 0;
-	}
+ 	}
 	for (i=1;i<(2*N+2*M);i+=4){
 		downMixedCosine[i] = 0;
 		downMixedSine[i] = recbuf[i];
@@ -131,6 +132,61 @@ void runReceivedPulseBufferDownmixing(){
 	}
 }
 
+
+
+/**
+	Sets up the transmit buffer for the sinc pulse modulated at quarter sampling frequency
+*/
+void SetupTransmitModulatedSincPulseBuffer(){
+
+	for (i=-N;i<=N;i++){
+		x = i*BW;
+		t = i*CBW;
+		if (i!=0)
+			y = cos(2*PI*t)*(sin(PI*x)/(PI*x)); // modulated sinc pulse at carrier freq = fs/4
+		else
+			y = 1;								//x = 0 case.
+		tClockSincPulse[i+N] = y*32767;			//Both of these  may be modified in the future calculations anywas
+		tVerifSincPulse[i+N] = y*32767;			//If FDE mode is on in order to do partial synchronization
+	}
+	//Half sample delayed
+	for (i=-N;i<=N;i++){
+		x = (i-0.5)*BW;
+		t = (i-0.5)*0.25;
+		y = cos(2*PI*t)*(sin(PI*x)/(PI*x)); // modulated sinc pulse at carrier freq = fs/4
+		tVerifSincPulsePhased[i+N] = y*32767;
+	}
+
+
+
+
+}
+/**
+	Sets up the buffer used for matched filtering of the sinc pulse
+*/
+void SetupReceiveBasebandSincPulseBuffer(){
+	for (i=-N;i<=N;i++){
+		x = i*BW;
+		if (i!=0)
+			y = sin(PI*x)/(PI*x); // double
+		else
+			y = 1.0;
+		basebandSincRef[i+N] = (float) y;
+	}
+}
+/**
+	Sets up the matched filter buffers which are used for matching and filtering of the incoming sines and cosines
+*/
+void SetupReceiveTrigonometricMatchedFilters(){
+	for (i=0;i<M;i++){
+		t = i*CBW;				// time
+		y = cos(2*PI*t);		// cosine matched filter (double)
+		matchedFilterCosine[i] = (float) y;		// cast and store
+		y = sin(2*PI*t);		// sine matched filter (double)
+		matchedFilterSine[i] = (float) y;     // cast and store
+		buf[i] = 0;             // clear searching buffer
+	}
+}
 
 /**
  * Looks at the received response time, the current time (to prevent trying to send immediately a fractional waveform,
@@ -203,5 +259,69 @@ long sumIntArray(short* array, short numElmts){
 	return sum;
 }
 
+/**
+ * calculates the new time to transmit for the verification on the slave
+ * @param curTime
+ * @param delayEstimate
+ * @return the center time of the vclock counter
+ */
+int calculateNewSynchronizationTimeSlaveCoarse(int curTime, int delayEstimate){
+	return 0;
+}
+/**
+ * Calculates the new center time to transmit at for the masters mirrored response to the slave
+ * @param curTime
+ * @param delayEstimate
+ * @return the center time of vclock counter
+ */
+int calculateNewResponseTimeMasterCoarse(int curTime, int delayEstimate){
+	return 0;
+}
 
+
+/**
+ * Calculates the new master buffer given the prior delay estimates for responding around the center tick.
+ * @param buffer
+ * @param bufferLen
+ * @param fine_delay_estimate
+ * @param fde_index
+ */
+void calculateNewResponseBufferMaster(short* buffer, short bufferLen, float* fine_delay_estimate, short fde_index){
+
+}
+
+
+/**
+ * Writes the verification waveform used to show synchronization with the master to the slaves buffer.
+ * This is used for fine synchronization (subsample)
+ * @param buffer				Bufer to write into
+ * @param bufferLen				length of buffer (usually N2)
+ * @param fine_delay_estimate	array of prior delay estimations to allow for linear extrapolation
+ * @param fde_index				index of latest estimate
+ */
+void calculateNewVerifBufferSlave(short* buffer, short bufferLen, float* fine_delay_estimate, short fde_index){
+
+}
+
+/**
+ *
+ * @param vclock_counter
+ * @param fine_delay_estimate
+ * @param fde_index
+ * @return the clock time to put into
+ */
+int calculateNewResponseTimeMasterFine(int vclock_counter, float* fine_delay_estimate, short fde_index){
+	return 0;
+}
+
+/**
+ *
+ * @param vclock_counter		current counter time
+ * @param fine_delay_estimate   array of prior delay estimates
+ * @param fde_index				index of current estimate
+ * @return
+ */
+int calculateNewSynchronizationTimeSlaveFine(int vclock_counter, float* fine_delay_estimate, short fde_index){
+	return 0;
+}
 

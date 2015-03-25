@@ -39,12 +39,16 @@
 // ------------------------------------------
 // start of variables
 // ------------------------------------------
+extern volatile short state;
 
 volatile int vclock_counter = 0; // virtual clock counter
 
 //Output waveform buffers for clock and sync channels
 short tClockSincPulse[N2];
 short tVerifSincPulse[N2];
+short tVerifSincPulsePhased[N2];
+
+extern short tCoarseVerifSincePulseFlag = 0; //flag for possibly outputting a phased output
 
 volatile int virClockTransmitCenterSinc = 0;			//center for sinc pulse according to vclock_counter
 volatile int virClockTransmitCenterVerify = 0;		//center for the verification pulse on the second channel
@@ -64,9 +68,9 @@ short fde_index = 0;
 
 //State Variables (transmit/receive/calculation)
 #if (NODE_TYPE == MASTER_NODE)//if master, listen to slave first and then send the sinc back
-extern volatile int state = STATE_SEARCHING;
+volatile short state = STATE_SEARCHING;
 #elif (NODE_TYPE == SLAVE_NODE)//if slave, send sinc and then wait for master's response
-extern volatile int state = STATE_TRANSMIT;
+volatile short state = STATE_TRANSMIT;
 #endif
 
 // ISR combos
@@ -87,6 +91,11 @@ interrupt void serialPortRcvISR(void);
 
 void main()
 {
+	//Set initial state
+	if(NODE_TYPE==MASTER_NODE)
+		state = STATE_SEARCHING;
+	else if(NODE_TYPE==SLAVE_NODE)
+		state = STATE_TRANSMIT;
 
 	// reset coarse and fine delay estimate buffers
 	for (i=0;i<MAX_STORED_DELAYS_COARSE;i++)
@@ -98,8 +107,8 @@ void main()
 	SetupReceiveTrigonometricMatchedFilters();
 	SetupReceiveBasebandSincPulseBuffer();
 	SetupTransmitModulatedSincPulseBuffer();
-	// -------- DSK Hardware Setup --------
 
+	// -------- DSK Hardware Setup --------
 	DSK6713_init();		// Initialize the board support library, must be called first
 	DSK6713_LED_init(); // initialize LEDs
     hCodec = DSK6713_AIC23_openCodec(0, &config);	// open codec and get handle
@@ -114,12 +123,8 @@ void main()
 	// set codec sampling frequency
 	DSK6713_AIC23_setFreq(hCodec, DSK_SAMPLE_FREQ);
 
-	//Example taken from TI forums
-	//Setup GPIO
+	//Setup GPIO for possible debug
 	gpioInit();
-
-	//NOTE inf loop
-	//gpioToggle();
 
 	// interrupt setup
 	IRQ_globalDisable();			// Globally disables interrupts
@@ -147,15 +152,15 @@ void main()
 			//Now we calculate the new center clock for verification or response sinc
 			#if USE_FDE
 					#if (NODE_TYPE==MASTER_NODE)
-						calculateNewResponseTimeMaster(vclock_counter, coarse_delay_estimate[cde_index]);
+						calculateNewResponseTimeMasterFine(vclock_counter, fine_delay_estimate, fde_index);
 					#elif (NODE_TYPE==SLAVE_NODE)
-						calculateNewSynchronizationTimeSlave(vclock_counter, coarse_delay_estimate[cde_index]);
+						calculateNewSynchronizationTimeSlaveFine(vclock_counter, fine_delay_estimate, fde_index);
 					#endif
 			#else
 				#if (NODE_TYPE==MASTER_NODE)
-					calculateNewResponseTimeMaster(vclock_counter, coarse_delay_estimate[cde_index]);
+					calculateNewResponseTimeMasterCoarse(vclock_counter, coarse_delay_estimate[cde_index]);
 				#elif (NODE_TYPE==SLAVE_NODE)
-					calculateNewSynchronizationTimeSlave(vclock_counter, coarse_delay_estimate[cde_index]);
+					calculateNewSynchronizationTimeSlaveCoarse(vclock_counter, coarse_delay_estimate[cde_index]);	//also might toggle phased output flag
 				#endif
 			#endif
 				/**
@@ -191,23 +196,22 @@ interrupt void serialPortRcvISR()
 	//Clock counter wrap
 	vclock_counter++; //Note! --- Not sure of the effects of moving the increment to the top
 	//Code should be common to both
-	if(vclock_counter >= LARGE_VCLK_MAX){
+	if(vclock_counter >= LARGE_VCLK_MAX){ //this will likely never happen
 		vclock_counter = 0;
-		ToggleDebugGPIO(0);
 	}
 
 
 	//Logic for different states is the same on both master and slave sides when expecting to receive
-	if (state==		STATE_SEARCHING) {
+	if (state ==		STATE_SEARCHING) {
 		runSearchingStateCodeISR(); //Possibly timeout to transmit as slave
 	}
-	else if (state==STATE_RECORDING) {
+	else if (state ==	STATE_RECORDING) {
 		runRecordingStateCodeISR();
 	}
-	else if(state==	STATE_CALCULATION){
+	else if(state ==	STATE_CALCULATION){
 		runCalculationStateCodeISR();
 	}
-	else if(state==	STATE_TRANSMIT){
+	else if(state ==	STATE_TRANSMIT){
 		runSincPulseTransmitISR();	//this function will change system state when it's done
 	}
 	else {
@@ -220,49 +224,6 @@ interrupt void serialPortRcvISR()
 	//Write the output sample to the audio codec
 	MCBSP_write(DSK6713_AIC23_DATAHANDLE, tempOutput.combo);
 
-}
-
-/**
-	Sets up the transmit buffer for the sinc pulse modulated at quarter sampling frequency
-*/
-void SetupTransmitModulatedSincPulseBuffer(){
-
-	for (i=-N;i<=N;i++){
-		x = i*BW;
-		t = i*0.25;
-		if (i!=0)
-			y = cos(2*PI*t)*(sin(PI*x)/(PI*x)); // modulated sinc pulse at carrier freq = fs/4
-		else
-			y = 1;								//x = 0 case.
-		tClockSincPulse[i+N] = y*32767;			//Both of these  may be modified in the future calculations anywas
-		tVerifSincPulse[i+N] = y*32767;			//If FDE mode is on in order to do partial synchronization
-	}
-}
-/**
-	Sets up the buffer used for matched filtering of the sinc pulse
-*/
-void SetupReceiveBasebandSincPulseBuffer(){
-	for (i=-N;i<=N;i++){
-		x = i*BW;
-		if (i!=0)
-			y = sin(PI*x)/(PI*x); // double
-		else
-			y = 1.0;
-		basebandSincRef[i+N] = (float) y;
-	}
-}
-/**
-	Sets up the matched filter buffers which are used for matching and filtering of the incoming sines and cosines
-*/
-void SetupReceiveTrigonometricMatchedFilters(){
-	for (i=0;i<M;i++){
-		t = i*0.25;				// time
-		y = cos(2*PI*t);		// cosine matched filter (double)
-		matchedFilterCosine[i] = (float) y;		// cast and store
-		y = sin(2*PI*t);		// sine matched filter (double)
-		matchedFilterSine[i] = (float) y;     // cast and store
-		buf[i] = 0;             // clear searching buffer
-	}
 }
 
 
@@ -337,7 +298,7 @@ void runSincPulseTransmitISR(){
 	else{
 		tempOutput.channel[TRANSMIT_SINC] = 0;
 	}
-	if(idxTemp == N2) //We have reached the end! go to receive
+	if(idxTemp == (N2-1)) //We have reached the end! go to receive
 		state=STATE_SEARCHING;
 }
 
@@ -346,9 +307,12 @@ void runSincPulseTransmitISR(){
  *	and the new observed synchronized time pulse for the slave
  */
 void runVerifyPulseTransmitISR(){
-	short idxTemp = GetVerifPulseIndex(vclock_counter, SMALL_VCLK_WRAP(virClockTransmitCenterVerify));
+	short idxTemp = GetVerifPulseIndex(vclock_counter, virClockTransmitCenterVerify);
 	if(idxTemp != -1){
-		tempOutput.channel[TRANSMIT_CLOCK] = tVerifSincPulse[idxTemp];
+		if(tCoarseVerifSincePulseFlag == 0)
+			tempOutput.channel[TRANSMIT_CLOCK] = tVerifSincPulse[idxTemp];
+		else if(tCoarseVerifSincePulseFlag == 1)
+			tempOutput.channel[TRANSMIT_CLOCK] = tVerifSincPulsePhased[idxTemp];
 	}
 	else{
 		tempOutput.channel[TRANSMIT_CLOCK] = 0;

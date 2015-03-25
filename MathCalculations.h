@@ -24,13 +24,8 @@
 #include "DebugTools.h"
 #include "MathCalculations.h"
 #include "time_stamper_master.h"
+#include "ProjectDefinitions.h"
 
-// sinc pulse normalized bandwidth
-#define BW 0.0125 //100Hz@8KhzFs
-
-// 2*N+1 is the number of samples in the sinc function
-#define N (1 << 9) //512
-#define N2 ((N*2)+1) //1025
 
 // length of searching window in samples
 #define M 60
@@ -38,14 +33,8 @@
 // threshold value for searching window
 #define T1 100000
 
-
 // max lag for computing correlations
 #define MAXLAG 200
-
-// number of coarse delays to store
-#define MAX_STORED_DELAYS_COARSE 16
-#define MAX_STORED_DELAYS_FINE 	 16
-
 
 // maximum sample value
 #define MAXSAMP 32767; //short sample value (also -32768)
@@ -54,6 +43,11 @@
 #define PI 3.14159265358979323846
 #define INVPI 0.318309886183791
 
+//Delay estimates (here because they're used for all code)
+extern int coarse_delay_estimate[MAX_STORED_DELAYS_COARSE];
+extern float fine_delay_estimate[MAX_STORED_DELAYS_FINE];
+extern short cde_index;
+extern short fde_index;
 
 //Calculation Variables
 extern float buf[M];       	// search buffer
@@ -100,8 +94,14 @@ void runReceivedPulseBufferDownmixing();
 void runReceviedSincPulseTimingAnalysis();
 
 // Time Calc Functions
-short calculateNewSynchronizationTimeSlave(short curTime, short delayEstimate);
-short calculateNewResponseTimeMaster(short curTime, short delayEstimate);
+int calculateNewSynchronizationTimeSlaveCoarse(int curTime, int delayEstimate);
+int calculateNewResponseTimeMasterCoarse(int curTime, int delayEstimate);
+
+void calculateNewResponseBufferMaster(short* buffer, short bufferLen, float* fine_delay_estimate, short fde_index);
+int calculateNewResponseTimeMasterFine(int vclock_counter, float* fine_delay_estimate, short fde_index);
+
+void calculateNewVerifBufferSlave(short* buffer, short bufferLen, float* fine_delay_estimate, short fde_index);
+int calculateNewSynchronizationTimeSlaveFine(int vclock_counter, float* fine_delay_estimate, short fde_index);
 
 
 #endif /* MATHCALCULATIONS_H_ */

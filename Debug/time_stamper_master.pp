@@ -44,6 +44,7 @@ time_stamper_master.obj: C:/ti/ccsv6/tools/compiler/c6000_7.4.8/include/c6x.h
 time_stamper_master.obj: C:/ti/ccsv6/tools/compiler/c6000_7.4.8/include/math.h
 time_stamper_master.obj: ../MathCalculations.h
 time_stamper_master.obj: ../time_stamper_master.h
+time_stamper_master.obj: ../ProjectDefinitions.h
 
 ../time_stamper_master.c: 
 C:/ti/ccsv6/tools/compiler/c6000_7.4.8/include/stdio.h: 
@@ -89,3 +90,4 @@ C:/ti/ccsv6/tools/compiler/c6000_7.4.8/include/c6x.h:
 C:/ti/ccsv6/tools/compiler/c6000_7.4.8/include/math.h: 
 ../MathCalculations.h: 
 ../time_stamper_master.h: 
+../ProjectDefinitions.h: 
