@@ -45,7 +45,7 @@
 #define STATE_SEARCHING_TIMEOUT_LIMIT 5 //Can look for 5 wrapped clock periods before we give up
 
 // virtual clock counter maximum
-#define LARGE_VCLK_MAX (1<<14) //16384 counts
+#define LARGE_VCLK_MAX (1<<31) //about two billion (2e9)
 #define SMALL_VCLK_MAX (1<<12) //4096 counts
 
 #define LARGE_VCLK_WRAP(i) ((i)&(LARGE_VCLK_MAX-1))
@@ -55,11 +55,19 @@
 #define MAX_STORED_DELAYS_COARSE 16
 #define MAX_STORED_DELAYS_FINE 16
 
-
-extern short coarse_delay_estimate[MAX_STORED_DELAYS_COARSE];
+extern int coarse_delay_estimate[MAX_STORED_DELAYS_COARSE];
 extern float fine_delay_estimate[MAX_STORED_DELAYS_FINE];
 extern short cde_index;
 extern short fde_index;
+
+//state variable
+extern volatile int state;
+
+extern volatile int vclock_counter;
+extern volatile int virClockTransmitCenterSinc;			//center for sinc pulse according to vclock_counter
+extern volatile int virClockTransmitCenterVerify;		//center for the verification pulse on the second channel
+
+
 
 
 
@@ -74,9 +82,6 @@ void runVerifyPulseTransmitISR();
 //index control funcs
 short GetVerifPulseIndex();
 short GetSincPulseIndex();
-
-//state variable
-extern volatile int state;
 
 
 

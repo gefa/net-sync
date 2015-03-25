@@ -40,34 +40,24 @@
 // start of variables
 // ------------------------------------------
 
-volatile short vclock_counter = 0; // virtual clock counter
-
-
+volatile int vclock_counter = 0; // virtual clock counter
 
 //Output waveform buffers for clock and sync channels
 short tClockSincPulse[N2];
 short tVerifSincPulse[N2];
 
-volatile short virClockTransmitCenterSinc = 0;
-volatile short virClockTransmitCenterVerify = 0;
+volatile int virClockTransmitCenterSinc = 0;			//center for sinc pulse according to vclock_counter
+volatile int virClockTransmitCenterVerify = 0;		//center for the verification pulse on the second channel
 
-volatile short virClockTransmitCenterSincIndex = 0;
-volatile short virClockTransmitCenterVerifyIndex = 0;
+volatile short virClockTransmitCenterSincIndex = 0;		//index for reading the synchronizing output buffer
+volatile short virClockTransmitCenterVerifyIndex = 0;	//index for reading the output buffer
+
+//Check whether the delay by N could cause the half sample,
+//As the full buffer is 2N+1, instead of just 2N
 
 
 
-
-/**
- * //Next in line buffer so whenever the verification happens on the slave,
- * The current output waveform is not clipped or shifted improperly. Calculations should update this,
- * and the ISR moves it to virClockTransmitCenterVerify when its finished with the current one.
- */
-volatile short virClockTransmitCenterVerifyBuffer = 0;
-
-//volatile short slaveTransmitTimeoutTime = 0; //Switches from receive to transmit state at this time for slave timeout
-volatile short numberOfTimesVerificationPulseSentWithoutUpdate = 0;
-
-short coarse_delay_estimate[MAX_STORED_DELAYS_COARSE];
+int coarse_delay_estimate[MAX_STORED_DELAYS_COARSE];
 float fine_delay_estimate[MAX_STORED_DELAYS_FINE];
 short cde_index = 0;
 short fde_index = 0;
@@ -151,14 +141,22 @@ void main()
 			// -----------------------------------------------
 			// this is where we estimate the time of arrival
 			// -----------------------------------------------
-			ToggleDebugGPIO(1);runReceivedPulseBufferDownmixing();ToggleDebugGPIO(1);
-			ToggleDebugGPIO(2);runReceviedSincPulseTimingAnalysis();ToggleDebugGPIO(2);
+			runReceivedPulseBufferDownmixing();
+			runReceviedSincPulseTimingAnalysis();
 
 			//Now we calculate the new center clock for verification or response sinc
-			#if (NODE_TYPE==MASTER_NODE)
-				calculateNewResponseTimeMaster(vclock_counter, coarse_delay_estimate[cde_index]);
-			#elif (NODE_TYPE==SLAVE_NODE)
-				calculateNewSynchronizationTimeSlave(vclock_counter, coarse_delay_estimate[cde_index]);
+			#if USE_FDE
+					#if (NODE_TYPE==MASTER_NODE)
+						calculateNewResponseTimeMaster(vclock_counter, coarse_delay_estimate[cde_index]);
+					#elif (NODE_TYPE==SLAVE_NODE)
+						calculateNewSynchronizationTimeSlave(vclock_counter, coarse_delay_estimate[cde_index]);
+					#endif
+			#else
+				#if (NODE_TYPE==MASTER_NODE)
+					calculateNewResponseTimeMaster(vclock_counter, coarse_delay_estimate[cde_index]);
+				#elif (NODE_TYPE==SLAVE_NODE)
+					calculateNewSynchronizationTimeSlave(vclock_counter, coarse_delay_estimate[cde_index]);
+				#endif
 			#endif
 				/**
 				 * \todo change the above to support A. floating point ability when FDE is turned on
@@ -169,14 +167,9 @@ void main()
 			//Enter transmission state after reception
 			state = STATE_TRANSMIT;
 			while(state == STATE_TRANSMIT){
-				//wait for ISR to timeout and switch state for slave, or fully respond as master
+				//wait for ISR to timeout
 			}
 
-			//increment indices
-			cde_index++;
-			if(cde_index>=MAX_STORED_DELAYS_COARSE) cde_index = 0;
-			fde_index++;
-			if(fde_index>=MAX_STORED_DELAYS_FINE) fde_index = 0;
 		}
 	}
 }

@@ -79,7 +79,7 @@ extern char r;
 extern double phase_correction_factor;
 extern short max_samp;
 
-extern volatile short recbuf_start_clock; // virtual clock counter for first sample in recording buffer
+extern volatile int recbuf_start_clock; // virtual clock counter for first sample in recording buffer
 
 
 

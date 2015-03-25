@@ -35,7 +35,7 @@ char r = 0;
 double phase_correction_factor;
 short max_samp = 0;
 
-volatile short recbuf_start_clock = 0; // virtual clock counter for first sample in recording buffer
+volatile int recbuf_start_clock = 0; // virtual clock counter for first sample in recording buffer
 
 
 /**
@@ -72,6 +72,14 @@ void runReceviedSincPulseTimingAnalysis(){
 	printf("Max lag: %d\n",corr_max_lag);
 	printf("Coarse delay estimate: %d.\n",recbuf_start_clock+corr_max_lag);
  	 */
+
+
+	//increment indices
+	cde_index++;
+	if(cde_index>=MAX_STORED_DELAYS_COARSE) cde_index = 0;
+	fde_index++;
+	if(fde_index>=MAX_STORED_DELAYS_FINE) fde_index = 0;
+	//We do this here, so that the current indice that we are about to store is always the most recent.
 
 	// store coarse delay estimates
 	coarse_delay_estimate[cde_index] = recbuf_start_clock+corr_max_lag;
@@ -146,7 +154,7 @@ short calculateNewSynchronizationTimeSlave(short curTime, short delayEstimate){
  *
  */
 short GetSincPulseIndex(){
-
+	return 0;
 }
 
 /**
@@ -160,7 +168,7 @@ short GetSincPulseIndex(){
  *
  */
 short GetVerifPulseIndex(){
-
+	return 0;
 }
 
 /**
