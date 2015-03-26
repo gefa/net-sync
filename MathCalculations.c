@@ -132,6 +132,30 @@ void runReceivedPulseBufferDownmixing(){
 	}
 }
 
+/**
+ *
+ */
+void quarterWavePulseDownmix(short* receiveBuf, short* dmCos, short* dmSin, short receiveBufSize){
+	// downmix (had problems using sin/cos here so used a trick)
+	/* The trick is based on the incoming frequency per sample being (n * pi/2), so every other sample goes to zero,
+	 * while the non-zero components sin() multiplicative factor is unity/1 */
+	for (i=0;i<(2*N+2*M);i+=4){
+		downMixedCosine[i] = *(receiveBuf+i);
+		downMixedSine[i] = 0;
+ 	}
+	for (i=1;i<(2*N+2*M);i+=4){
+		downMixedCosine[i] = 0;
+		downMixedSine[i] = *(receiveBuf+i);
+	}
+	for (i=2;i<(2*N+2*M);i+=4){
+		downMixedCosine[i] = -*(receiveBuf+i);
+		downMixedSine[i] = 0;
+	}
+	for (i=3;i<(2*N+2*M);i+=4){
+		downMixedCosine[i] = 0;
+		downMixedSine[i] = -*(receiveBuf+i);
+	}
+}
 
 
 /**
