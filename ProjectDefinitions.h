@@ -24,7 +24,7 @@
 #define DSK_SAMPLE_FREQ DSK6713_AIC23_FREQ_8KHZ
 
 // virtual clock counter maximum
-#define LARGE_VCLK_MAX (1<<31) //about two billion (2e9)
+#define LARGE_VCLK_MAX (1<<30) //about two billion (2e9)
 #define SMALL_VCLK_MAX (1<<12) //4096 counts
 
 #define LARGE_VCLK_WRAP(i) ((i)&(LARGE_VCLK_MAX-1))
@@ -37,7 +37,7 @@
 #define CBW 0.25 	//2kHz@8k Fs  carrier frequency
 
 // 2*N+1 is the number of samples in the sinc function
-#define N (1 << 9) //512
+#define N (1<<9) //512
 #define N2 ((N*2)+1) //1025
 
 

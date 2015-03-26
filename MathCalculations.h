@@ -91,6 +91,7 @@ void SetupReceiveTrigonometricMatchedFilters();
 
 //Analysis functions
 void runReceivedPulseBufferDownmixing();
+void quarterWavePulseDownmix(short* receiveBuf, short* dmCos, short* dmSin, short receiveBufSize);
 void runReceviedSincPulseTimingAnalysis();
 
 // Time Calc Functions
@@ -103,5 +104,6 @@ int calculateNewResponseTimeMasterFine(int vclock_counter, float* fine_delay_est
 void calculateNewVerifBufferSlave(short* buffer, short bufferLen, float* fine_delay_estimate, short fde_index);
 int calculateNewSynchronizationTimeSlaveFine(int vclock_counter, float* fine_delay_estimate, short fde_index);
 
+int GetPulseIndex(int VClockCurrent, int VClockCenterPulse);
 
 #endif /* MATHCALCULATIONS_H_ */

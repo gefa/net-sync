@@ -9,7 +9,7 @@
  */
 
 #include "MathCalculations.h"
-
+#include <math.h>
 
 //Calculation Variables
 float buf[M];       	// search buffer
@@ -133,27 +133,31 @@ void runReceivedPulseBufferDownmixing(){
 }
 
 /**
- *
+ * Note, receiveBufSize typically 2N+2M
+ * @param receiveBuf	The receive buffer to downmix from, which contains the received modulated signal
+ * @param dmCos			In-phase baseband buffer to receive into
+ * @param dmSin			Quadrature baseband buffer
+ * @param receiveBufSize Size of the buffer
  */
 void quarterWavePulseDownmix(short* receiveBuf, short* dmCos, short* dmSin, short receiveBufSize){
 	// downmix (had problems using sin/cos here so used a trick)
 	/* The trick is based on the incoming frequency per sample being (n * pi/2), so every other sample goes to zero,
 	 * while the non-zero components sin() multiplicative factor is unity/1 */
-	for (i=0;i<(2*N+2*M);i+=4){
-		downMixedCosine[i] = *(receiveBuf+i);
-		downMixedSine[i] = 0;
+	for (i=0;i<receiveBufSize;i+=4){
+		*(dmCos + i) = *(receiveBuf+i);
+		*(dmSin + i) = 0;
  	}
 	for (i=1;i<(2*N+2*M);i+=4){
-		downMixedCosine[i] = 0;
-		downMixedSine[i] = *(receiveBuf+i);
+		*(dmCos + i) = 0;
+		*(dmSin + i) = *(receiveBuf+i);
 	}
 	for (i=2;i<(2*N+2*M);i+=4){
-		downMixedCosine[i] = -*(receiveBuf+i);
-		downMixedSine[i] = 0;
+		*(dmCos + i) = -(*(receiveBuf+i));
+		*(dmSin + i) = 0;
 	}
 	for (i=3;i<(2*N+2*M);i+=4){
-		downMixedCosine[i] = 0;
-		downMixedSine[i] = -*(receiveBuf+i);
+		*(dmCos + i) = 0;
+		*(dmSin + i) = -(*(receiveBuf+i));
 	}
 }
 
@@ -180,11 +184,34 @@ void SetupTransmitModulatedSincPulseBuffer(){
 		y = cos(2*PI*t)*(sin(PI*x)/(PI*x)); // modulated sinc pulse at carrier freq = fs/4
 		tVerifSincPulsePhased[i+N] = y*32767;
 	}
-
-
-
-
 }
+
+
+/**
+ * Calculates a transmission waveform to be placed into a buffer.
+ * @param tBuffer		The buffer to put the waveform into
+ * @param halfBufLen	The size of one half of the buffer (e.g. -N, to 0, to N)
+ * @param sincBandwidth The bandwidth of the sinc pulse (e.g. 0.0125 BW)
+ * @param carrierFreq	The frequency to modulate at 	(e.g. 0.25 CBW)
+ * @param delay			the fractional delay in samples to allow for sync (e.g. 0.5 is one half sample delay)
+ */
+void setupTransmitBuffer(short* tBuffer, short halfBufLen, float sincBandwidth, float carrierFreq, float delay){
+
+	//i is index per element, y is temp for output
+
+	for (i=-halfBufLen;i<=halfBufLen;i++){
+		x = (i - delay) * sincBandwidth;
+		t = (i - delay) * carrierFreq;
+		if (x == 0.00000) //floating point check if delay is too close to 1 or 0 to keep division by zero from occurring
+			y = 1.0;
+		else
+			y = cos(2*PI*t)*(sin(PI*x)/(PI*x)); // modulated sinc pulse at carrier freq = fs/4
+
+		*(tBuffer + i + halfBufLen) = (short)(y*32767);
+	}
+}
+
+
 /**
 	Sets up the buffer used for matched filtering of the sinc pulse
 */
@@ -198,6 +225,24 @@ void SetupReceiveBasebandSincPulseBuffer(){
 		basebandSincRef[i+N] = (float) y;
 	}
 }
+
+/**
+ * sets up a buffer with an unmodulated sinc pulse centered at x=0
+ * @param buffer		the buffer to write into
+ * @param halfBufLen	half the buffer size, plus 0
+ * @param sincBandwidth the bandwidth of the sinc pulse (e.g. 0.0125 BW)
+ */
+void setupBasebandSincBuffer(float* buffer, short halfBufLen, float sincBandwidth){
+	for (i=-N;i<=N;i++){
+		x = i*sincBandwidth;
+		if (i!=0)
+			y = sin(PI*x)/(PI*x); // double
+		else
+			y = 1.0;
+		*(buffer + i + halfBufLen) = (float) y;
+	}
+}
+
 /**
 	Sets up the matched filter buffers which are used for matching and filtering of the incoming sines and cosines
 */
@@ -211,6 +256,25 @@ void SetupReceiveTrigonometricMatchedFilters(){
 		buf[i] = 0;             // clear searching buffer
 	}
 }
+
+/**
+ *
+ * @param inPhaseBuffer
+ * @param quadraturebuffer
+ * @param bufLen
+ * @param cFreq
+ */
+void setupQuadratureCarrierWaveFilterBuffer(float* inPhaseBuffer, float* quadraturebuffer, short bufLen, float cFreq){
+	for (i=0;i<M;i++){
+		t = i*CBW;				// time
+		y = cos(2*PI*t);		// cosine matched filter (double)
+		matchedFilterCosine[i] = (float) y;		// cast and store
+		y = sin(2*PI*t);		// sine matched filter (double)
+		matchedFilterSine[i] = (float) y;     // cast and store
+		buf[i] = 0;             // clear searching buffer
+	}
+}
+
 
 /**
  * Looks at the received response time, the current time (to prevent trying to send immediately a fractional waveform,
@@ -233,8 +297,26 @@ short calculateNewSynchronizationTimeSlave(short curTime, short delayEstimate){
  *
  *
  */
-short GetSincPulseIndex(){
-	return 0;
+short GetSincPulseIndex(int VClockCurrent, int VClockCenterPulse, short currentIndex){
+
+
+	return -1;
+}
+
+
+/**
+ *	Returns the index to output for a buffer, based on the current clock counter and the expected center pulse
+ * @param VClockCurrent
+ * @param VClockCenterPulse
+ */
+int GetPulseIndex(int VClockCurrent, int VClockCenterPulse){
+
+	int tempIndex = VClockCurrent - VClockCenterPulse + N;
+	if (tempIndex <= -1) 	//index too early
+		tempIndex = -1;		//too far behind, just clamp at -1 to indicate we're not outputing now and actually output 0
+	if (tempIndex >= N2) 	//index too ahead
+		tempIndex = -1;
+	return tempIndex;
 }
 
 /**

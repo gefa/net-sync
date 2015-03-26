@@ -42,6 +42,7 @@ MathCalculations.obj: C:/ti/ccsv6/tools/compiler/c6000_7.4.8/include/math.h
 MathCalculations.obj: ../MathCalculations.h
 MathCalculations.obj: ../time_stamper_master.h
 MathCalculations.obj: ../ProjectDefinitions.h
+MathCalculations.obj: C:/ti/ccsv6/tools/compiler/c6000_7.4.8/include/math.h
 
 ../MathCalculations.c: 
 ../MathCalculations.h: 
@@ -85,3 +86,4 @@ C:/ti/ccsv6/tools/compiler/c6000_7.4.8/include/math.h:
 ../MathCalculations.h: 
 ../time_stamper_master.h: 
 ../ProjectDefinitions.h: 
+C:/ti/ccsv6/tools/compiler/c6000_7.4.8/include/math.h: 
