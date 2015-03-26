@@ -86,12 +86,15 @@ long sumIntArray(short* array, short numElmts);
 
 //Setup Functions
 void SetupTransmitModulatedSincPulseBuffer();
+void setupTransmitBuffer(short* tBuffer, short halfBufLen, float sincBandwidth, float carrierFreq, float delay);
 void SetupReceiveBasebandSincPulseBuffer();
+void setupBasebandSincBuffer(float* buffer, short halfBufLen, float sincBandwidth);
 void SetupReceiveTrigonometricMatchedFilters();
+void setupQuadratureCarrierWaveFilterBuffer(float* inPhaseBuffer, float* quadraturebuffer, short bufLen, float cFreq);
 
 //Analysis functions
 void runReceivedPulseBufferDownmixing();
-void quarterWavePulseDownmix(short* receiveBuf, short* dmCos, short* dmSin, short receiveBufSize);
+void quarterWavePulseDownmix(float* receiveBuf, float* dmCos, float* dmSin, short receiveBufSize);
 void runReceviedSincPulseTimingAnalysis();
 
 // Time Calc Functions
@@ -104,6 +107,6 @@ int calculateNewResponseTimeMasterFine(int vclock_counter, float* fine_delay_est
 void calculateNewVerifBufferSlave(short* buffer, short bufferLen, float* fine_delay_estimate, short fde_index);
 int calculateNewSynchronizationTimeSlaveFine(int vclock_counter, float* fine_delay_estimate, short fde_index);
 
-int GetPulseIndex(int VClockCurrent, int VClockCenterPulse);
+int GetPulseIndex(int VClockCurrent, int VClockCenterPulse, short halfBufLen);
 
 #endif /* MATHCALCULATIONS_H_ */

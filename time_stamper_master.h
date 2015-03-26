@@ -31,7 +31,7 @@
 #define STATE_CALCULATION 2
 #define STATE_TRANSMIT 3
 
-#define STATE_SEARCHING_TIMEOUT_LIMIT 5 //Can look for 5 wrapped clock periods before we give up
+#define STATE_SEARCHING_TIMEOUT_LIMIT 5 				//Can look for 5 wrapped clock periods before we give up
 
 //state variable
 extern volatile short state;
@@ -40,11 +40,13 @@ extern volatile int vclock_counter;
 extern volatile int virClockTransmitCenterSinc;			//center for sinc pulse according to vclock_counter
 extern volatile int virClockTransmitCenterVerify;		//center for the verification pulse on the second channel
 
-extern short tClockSincPulse[N2];
-extern short tVerifSincPulse[N2];
-extern short tVerifSincPulsePhased[N2];
+extern short tClockSincPulse[N2];						//For transmitting on main channel to synchronization between the two nodes
+extern short tVerifSincPulse[N2];						//For outputting on aux channel for verification
+extern short tVerifSincPulsePhased[N2];					//Phased output on aux channel for coarse estimate mean offset removal
 
 extern short tCoarseVerifSincePulseFlag;
+
+extern short searchingStateTimeoutCounter;
 
 
 
@@ -56,9 +58,6 @@ void runCalculationStateCodeISR();
 void runSincPulseTransmitISR();
 void runVerifyPulseTransmitISR();
 
-//index control funcs
-short GetVerifPulseIndex();
-short GetSincPulseIndex();
 
 
 

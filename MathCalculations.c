@@ -139,7 +139,7 @@ void runReceivedPulseBufferDownmixing(){
  * @param dmSin			Quadrature baseband buffer
  * @param receiveBufSize Size of the buffer
  */
-void quarterWavePulseDownmix(short* receiveBuf, short* dmCos, short* dmSin, short receiveBufSize){
+void quarterWavePulseDownmix(float* receiveBuf, float* dmCos, float* dmSin, short receiveBufSize){
 	// downmix (had problems using sin/cos here so used a trick)
 	/* The trick is based on the incoming frequency per sample being (n * pi/2), so every other sample goes to zero,
 	 * while the non-zero components sin() multiplicative factor is unity/1 */
@@ -291,17 +291,6 @@ short calculateNewSynchronizationTimeSlave(short curTime, short delayEstimate){
 	return 0; /** \todo */
 }
 
-/**
- *	Responds with the buffer index for transmitting the output synchronization sinc pulse
- *	Essentially looks at the virClockTransmitCenterSinc variable, and subtracts and wraps
- *
- *
- */
-short GetSincPulseIndex(int VClockCurrent, int VClockCenterPulse, short currentIndex){
-
-
-	return -1;
-}
 
 
 /**
@@ -309,29 +298,17 @@ short GetSincPulseIndex(int VClockCurrent, int VClockCenterPulse, short currentI
  * @param VClockCurrent
  * @param VClockCenterPulse
  */
-int GetPulseIndex(int VClockCurrent, int VClockCenterPulse){
+int GetPulseIndex(int VClockCurrent, int VClockCenterPulse, short halfBufLen){
 
-	int tempIndex = VClockCurrent - VClockCenterPulse + N;
+	int tempIndex = VClockCurrent - VClockCenterPulse + halfBufLen;
 	if (tempIndex <= -1) 	//index too early
 		tempIndex = -1;		//too far behind, just clamp at -1 to indicate we're not outputing now and actually output 0
-	if (tempIndex >= N2) 	//index too ahead
+	if (tempIndex >= (2*halfBufLen+1)) 	//index too ahead
 		tempIndex = -1;
 	return tempIndex;
 }
 
-/**
- *	Responds with the buffer index for transmitting the output verification sinc pulse
- *
- *	Variables it looks at:
- *	virClockTransmitCenterVerify
- *	SMALL_VCLK_WRAP(vclock_counter)
- *	N 							(to find when to start/stop)
- *
- *
- */
-short GetVerifPulseIndex(){
-	return 0;
-}
+
 
 /**
  * Sums up an array of floats to produce the sum

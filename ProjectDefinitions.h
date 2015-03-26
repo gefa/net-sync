@@ -18,7 +18,7 @@
 #define NODE_TYPE SLAVE_NODE
 
 //If use floating point fixes
-#define USE_FDE 0
+#define USE_FDE 1
 
 //Audio codec sample frequency
 #define DSK_SAMPLE_FREQ DSK6713_AIC23_FREQ_8KHZ
