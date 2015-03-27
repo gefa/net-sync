@@ -53,8 +53,6 @@ extern short tCoarseVerifSincePulseFlag = 0; //flag for possibly outputting a ph
 volatile int virClockTransmitCenterSinc = 0;			//center for sinc pulse according to vclock_counter
 volatile int virClockTransmitCenterVerify = 0;		//center for the verification pulse on the second channel
 
-volatile short virClockTransmitCenterSincIndex = 0;		//index for reading the synchronizing output buffer
-volatile short virClockTransmitCenterVerifyIndex = 0;	//index for reading the output buffer
 
 //Check whether the delay by N could cause the half sample,
 //As the full buffer is 2N+1, instead of just 2N
@@ -150,7 +148,14 @@ void main()
 
 			#if USE_FDE		//Fine Estimation
 				#if (NODE_TYPE==MASTER_NODE)
+					float mirroredResponseTime = masterMirrorResponseTime(fine_delay_estimate, fde_index);
+					float delayLevel = getMasterDelayLevelFromResponseTime(mirroredResponseTime);		//These two functions must work in tandem
+					int newVirClockResponseTime = getMasterIntegerResponseTime(mirroredResponseTime);   //These two functions must work in tandem
+					setupTransmitBuffer(tClockSincPulse, N, BW, CBW, delayLevel);			//Calculate the buffer based on the new delay level
 
+					virClockTransmitCenterSinc = newVirClockResponseTime; 	//Possibly add a check here adding two clock periods based on level
+
+					//Possibly add final check on virClock transmit here to make sure we're not too late after calculating the new buffer?
 
 				#elif (NODE_TYPE==SLAVE_NODE)
 

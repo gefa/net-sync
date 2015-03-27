@@ -198,16 +198,18 @@ void SetupTransmitModulatedSincPulseBuffer(){
 void setupTransmitBuffer(short* tBuffer, short halfBufLen, float sincBandwidth, float carrierFreq, float delay){
 
 	//i is index per element, y is temp for output
+	int idx;
+	float x, y, t;
 
-	for (i=-halfBufLen;i<=halfBufLen;i++){
-		x = (i - delay) * sincBandwidth;
-		t = (i - delay) * carrierFreq;
+	for (idx=-halfBufLen;idx<=halfBufLen;idx++){
+		x = (idx - delay) * sincBandwidth;
+		t = (idx - delay) * carrierFreq;
 		if (x == 0.00000) //floating point check if delay is too close to 1 or 0 to keep division by zero from occurring
 			y = 1.0;
 		else
 			y = cos(2*PI*t)*(sin(PI*x)/(PI*x)); // modulated sinc pulse at carrier freq = fs/4
 
-		*(tBuffer + i + halfBufLen) = (short)(y*32767);
+		*(tBuffer + idx + halfBufLen) = (short)(y*32767);
 	}
 }
 
@@ -408,3 +410,50 @@ int calculateNewSynchronizationTimeSlaveFine(int vclock_counter, float* fine_del
 	return 0;
 }
 
+/**
+ * Takes the delay estimate time, wraps it around the nearest virtual clock tick based on the counter time
+ * @param fine_delay_estimate_array	Array of the variables containing the delay estimates
+ * @param fde_index					index offset for the array indicating the latest estimate
+ * @return	The new virtual clock tick to center around to transmit
+ */
+float masterMirrorResponseTime(float* fine_delay_estimate_array, short fde_index){
+	int curVClockTime = vclock_counter;
+	int wrappedTime = SMALL_VCLK_WRAP(vclock_counter);
+
+	int nearestNodeTime = curVClockTime - wrappedTime; //take current time and find the nearest node by removing the offset
+	float floatingNearestNodeTime = (float) nearestNodeTime; //This should be LATER than the estimate since the clock counter is always running
+
+	//index time, we shouldn't need to run any linear regression analysis since we're the master
+	float delayEstimate = *(fine_delay_estimate_array + fde_index);
+
+	//equiv to floatingNearestNodeTime + -(delayEstimate - floatingNearestNodeTime)
+	float wrappedMasterTime = 2*floatingNearestNodeTime - delayEstimate;
+
+	//If we're on wrapping clock time, might be negative
+	while (wrappedMasterTime < 0.0f)
+		wrappedMasterTime += (float) SMALL_VCLK_MAX; //make positive
+
+	//This next line is ONLY NECCESARY FOR THE NON-WRAPPING CLOCK!
+	if ((float)vclock_counter + MIN_THRESHOLD_FOR_CALCS >= wrappedMasterTime)
+		wrappedMasterTime += 2.0 * (float) SMALL_VCLK_MAX; //adds another clock period to wait for if our calc time is too close to current time.
+
+	return wrappedMasterTime;
+
+}
+/**
+ * Gets the fractional part of the calculated center time to transmit at for the array recalculation function
+ * @param mirroredResponseTime
+ * @return
+ */
+float getMasterDelayLevelFromResponseTime(float mirroredResponseTime){
+	int integerizedTime = (int)mirroredResponseTime; //This should work if it's floor to negative infinity rounding, otherwise ~\_-_-_/~
+	return mirroredResponseTime - (float)integerizedTime;
+}
+/**
+ * Converts the precise response time value to an integer which corresponds with the proper ISR tick to send at
+ * @param mirroredResponseTime
+ * @return
+ */
+int getMasterIntegerResponseTime(float mirroredResponseTime){
+	return (int) mirroredResponseTime;
+}

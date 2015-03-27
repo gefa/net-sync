@@ -39,6 +39,9 @@
 // maximum sample value
 #define MAXSAMP 32767; //short sample value (also -32768)
 
+//Buffer for calculating center time
+#define MIN_THRESHOLD_FOR_CALCS 10
+
 // define PI and INVPI
 #define PI 3.14159265358979323846
 #define INVPI 0.318309886183791
@@ -107,6 +110,14 @@ int calculateNewResponseTimeMasterFine(int vclock_counter, float* fine_delay_est
 void calculateNewVerifBufferSlave(short* buffer, short bufferLen, float* fine_delay_estimate, short fde_index);
 int calculateNewSynchronizationTimeSlaveFine(int vclock_counter, float* fine_delay_estimate, short fde_index);
 
+//New math functions (since this is a new age)
 int GetPulseIndex(int VClockCurrent, int VClockCenterPulse, short halfBufLen);
+
+float masterMirrorResponseTime(float* fine_delay_estimate_array, short fde_index);
+float getMasterDelayLevelFromResponseTime(float mirroredResponseTime);
+int getMasterIntegerResponseTime(float mirroredResponseTime);
+
+float slaveMasterTimeSyncEstimate(float* fine_delay_estimate_array, short fde_index);
+
 
 #endif /* MATHCALCULATIONS_H_ */

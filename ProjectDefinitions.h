@@ -15,7 +15,7 @@
 #define SLAVE_NODE 	2
 
 //Node type - This changes whether setting
-#define NODE_TYPE SLAVE_NODE
+#define NODE_TYPE MASTER_NODE
 
 //If use floating point fixes
 #define USE_FDE 1
@@ -35,6 +35,7 @@
 
 #define BW 0.0125 	//100Hz@8k Fs baseband sinc frequency
 #define CBW 0.25 	//2kHz@8k Fs  carrier frequency
+
 
 // 2*N+1 is the number of samples in the sinc function
 #define N (1<<9) //512
