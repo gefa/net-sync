@@ -57,8 +57,10 @@ volatile int virClockTransmitCenterVerify = 0;		//center for the verification pu
 //Check whether the delay by N could cause the half sample,
 //As the full buffer is 2N+1, instead of just 2N
 
-int coarse_delay_estimate[MAX_STORED_DELAYS_COARSE];
+int coarse_delay_estimate[MAX_STORED_DELAYS_COARSE];		//delay estimates by receiving estimator
 float fine_delay_estimate[MAX_STORED_DELAYS_FINE];
+int coarse_master_clock_estimate[MAX_STORED_DELAYS_COARSE];	//estimate in vclock counter time when the masters clock tick is
+float fine_master_clock_estimate[MAX_STORED_DELAYS_FINE];	//primarily used for the fine side where we need to estimate into the future for sync
 short cde_index = 0;
 short fde_index = 0;
 
@@ -158,6 +160,8 @@ void main()
 					//Possibly add final check on virClock transmit here to make sure we're not too late after calculating the new buffer?
 
 				#elif (NODE_TYPE==SLAVE_NODE)
+
+
 
 
 				#endif

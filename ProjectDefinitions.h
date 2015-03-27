@@ -15,7 +15,7 @@
 #define SLAVE_NODE 	2
 
 //Node type - This changes whether setting
-#define NODE_TYPE MASTER_NODE
+#define NODE_TYPE SLAVE_NODE
 
 //If use floating point fixes
 #define USE_FDE 1
