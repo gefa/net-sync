@@ -183,9 +183,10 @@ volatile short calculation_done = 0;		//debug
 volatile short v_clk[3];					//debug
 volatile short clk_flag = 0;
 
-#define HISTORY	30
-volatile short debug_history[HISTORY];
-volatile short debug_history2[HISTORY];
+#define HISTORY	10
+volatile short debug_history[HISTORY][4];
+//volatile short debug_history2[HISTORY];
+//volatile short debug_history3[HISTORY];
 int age=0;
 
 //Slave transmit variables
@@ -241,6 +242,7 @@ void runSearchingStateCodeISR();
 void runRecordingStateCodeISR();
 void runCalculationStateCodeISR();
 void runResponseStateCodeISR();
+
 void runResponseClkSinc();
 
 
@@ -407,14 +409,19 @@ void main()
 //				vclock_offset = sinc_roundtrip_time / 2;					// divide by two
 
 				// alternative way - portable code
-				//volatile short tick_variable = vclock_counter;//variable tick
+				volatile short tick_variable = vclock_counter;//variable tick
 				volatile short tick_center_point = CLOCK_WRAP(coarse_delay_estimate[cde_index]);//this does not need to be an array
 
 				//patch for error when tick_center_point=0 once in a while
 				//if(tick_center_point!=0)
 				{
 
-				volatile short sinc_roundtrip_time = sinc_launch*VCLK_MAX + tick_center_point + (VCLK_MAX>>1);
+				volatile short sinc_roundtrip_time;
+
+				//if(tick_center_point < tick_variable)
+					sinc_roundtrip_time = (sinc_launch)*VCLK_MAX + tick_center_point - (VCLK_MAX>>1);
+				//else
+				//	sinc_roundtrip_time = (sinc_launch-1)*VCLK_MAX + tick_center_point ;//- (VCLK_MAX>>1);
 
 				//if(sinc_launch==0)
 				//	sinc_launch=0;
@@ -423,25 +430,27 @@ void main()
 				//if(tick_variable<tick_center_point)
 				//	sinc_roundtrip_time -= VCLK_MAX;
 
-				debug_history[age]=tick_center_point;
-				debug_history2[age]=sinc_roundtrip_time;
+				debug_history[age][0]=tick_center_point;
+				debug_history[age][1]=tick_variable;
+				debug_history[age][2]=sinc_launch;
+				debug_history[age][3]=sinc_roundtrip_time;
 				age++;
 				if(age==HISTORY)
 					age=0;
 
-				if((sinc_roundtrip_time & 1)==0)//if even
-					even = 1;
-				else
-					even = 0;
+//				if((sinc_roundtrip_time & 1)==0)//if even
+//					even = 1;
+//				else
+//					even = 0;
 
 				vclock_offset = sinc_roundtrip_time>>1;//divide by 2
-				vclock_offset = CLOCK_WRAP(vclock_offset-1); //Actually offsets properly
+				vclock_offset = CLOCK_WRAP(vclock_offset); //Actually offsets properly
 				//vclock_offset = CLOCK_WRAP(vclock_offset);
 
 
 
 				while (vclock_counter != vclock_offset) ;//wait for master zero
-				vclock_counter = VCLK_MAX; //correct the vclock
+				vclock_counter = 0; //correct the vclock
 
 				}
 
@@ -502,7 +511,7 @@ interrupt void serialPortRcvISR()
 		// update sinc start virtual clock
 
 		if (sinc_launch>=4) {//x*VCLK_MAX, x dictates the timeout, 3 should be enough
-			sinc_launch = 0; //
+			//sinc_launch = 0; //
 			state=STATE_TRANSMIT;//timeout reached, no sinc reflected from master, send sinc again
 			ToggleDebugGPIO(STATE_TRANSMIT);
 		}
@@ -588,8 +597,8 @@ void SetupTransmitModulatedSincPulseBuffer(){
 void SetupTransmitModulatedSincPulseBufferDelayed(){
 
 	for (i=-N;i<=N;i++){
-		x = (i-0.5)*BW;
-		t = (i-0.5)*0.25;
+		x = ((double)i-0.5)*BW;
+		t = ((double)i-0.5)*0.25;
 		//if (i!=0)
 			y = cos(2*PI*t)*(sin(PI*x)/(PI*x)); // modulated sinc pulse at carrier freq = fs/4
 		//else
@@ -751,7 +760,8 @@ void runCalculationStateCodeISR(){
 void runResponseStateCodeISR(){
 	if(vclock_counter==vir_clock_start){ //Okay, we've reached the appropriate wrap around point where we should start sending the dataers
 		amSending = 1;
-		sinc_launch = 0;//center outgoing tick at virtual tick
+		sinc_launch = -1;//center outgoing tick at virtual tick
+						 // start at -1 since we dont want to count the first overflow (happens right away) since it is zero-th point
 	}
 	if(amSending){ //write the buffered output waveform to the output file, adn increment the index counter
 		tempOutput.channel[TRANSMIT_SINC] = tModulatedSincPulse[response_buf_idx];
@@ -767,9 +777,9 @@ void runResponseStateCodeISR(){
 
 void runResponseClkSinc(){
 
-	if(even)
-		tempOutput.channel[TRANSMIT_CLOCK] = tModulatedSincPulse[response_buf_idx_clk];
-	else	//odd
+	//if(even)
+	//	tempOutput.channel[TRANSMIT_CLOCK] = tModulatedSincPulse[response_buf_idx_clk];
+	//else	//odd
 		tempOutput.channel[TRANSMIT_CLOCK] = tModulatedSincPulse_delayed[response_buf_idx_clk];
 
 	response_buf_idx_clk++;
