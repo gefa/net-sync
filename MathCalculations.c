@@ -42,6 +42,7 @@ volatile int recbuf_start_clock = 0; // virtual clock counter for first sample i
  * Calculates the delay estimates
  * Stores the results in the coarse_delay_estimate and fine_delay_estimate buffers
  */
+/*
 void runReceviedSincPulseTimingAnalysis(){
 	// this is where we apply the matched filter
 	// we only do this over a limited range
@@ -67,11 +68,6 @@ void runReceviedSincPulseTimingAnalysis(){
 	corr_max_c = corr_c[corr_max_lag];
 	corr_max_s = corr_s[corr_max_lag];
 
-	/*
-	printf wrecks the real-time operation
-	printf("Max lag: %d\n",corr_max_lag);
-	printf("Coarse delay estimate: %d.\n",recbuf_start_clock+corr_max_lag);
- 	 */
 
 
 	//increment indices
@@ -106,31 +102,8 @@ void runReceviedSincPulseTimingAnalysis(){
 
 	// --- Calculations Finished ---
 }
+*/
 
-/**
- * Mixes the received waveform in recbuf down to baseband. ONLY WORKS at currently set center freq (1/2 of nyquist)
- */
-void runReceivedPulseBufferDownmixing(){
-	// downmix (had problems using sin/cos here so used a trick)
-	/* The trick is based on the incoming frequency per sample being (n * pi/2), so every other sample goes to zero,
-	 * while the non-zero components sin() multiplicative factor is unity/1 */
-	for (i=0;i<(2*N+2*M);i+=4){
-		downMixedCosine[i] = recbuf[i];
-		downMixedSine[i] = 0;
- 	}
-	for (i=1;i<(2*N+2*M);i+=4){
-		downMixedCosine[i] = 0;
-		downMixedSine[i] = recbuf[i];
-	}
-	for (i=2;i<(2*N+2*M);i+=4){
-		downMixedCosine[i] = -recbuf[i];
-		downMixedSine[i] = 0;
-	}
-	for (i=3;i<(2*N+2*M);i+=4){
-		downMixedCosine[i] = 0;
-		downMixedSine[i] = -recbuf[i];
-	}
-}
 
 /**
  * Note, receiveBufSize typically 2N+2M
@@ -163,31 +136,6 @@ void quarterWavePulseDownmix(float* receiveBuf, float* dmCos, float* dmSin, shor
 
 
 /**
-	Sets up the transmit buffer for the sinc pulse modulated at quarter sampling frequency
-*/
-void SetupTransmitModulatedSincPulseBuffer(){
-
-	for (i=-N;i<=N;i++){
-		x = i*BW;
-		t = i*CBW;
-		if (i!=0)
-			y = cos(2*PI*t)*(sin(PI*x)/(PI*x)); // modulated sinc pulse at carrier freq = fs/4
-		else
-			y = 1;								//x = 0 case.
-		tClockSincPulse[i+N] = y*32767;			//Both of these  may be modified in the future calculations anywas
-		tVerifSincPulse[i+N] = y*32767;			//If FDE mode is on in order to do partial synchronization
-	}
-	//Half sample delayed
-	for (i=-N;i<=N;i++){
-		x = (i-0.5)*BW;
-		t = (i-0.5)*0.25;
-		y = cos(2*PI*t)*(sin(PI*x)/(PI*x)); // modulated sinc pulse at carrier freq = fs/4
-		tVerifSincPulsePhased[i+N] = y*32767;
-	}
-}
-
-
-/**
  * Calculates a transmission waveform to be placed into a buffer.
  * @param tBuffer		The buffer to put the waveform into
  * @param halfBufLen	The size of one half of the buffer (e.g. -N, to 0, to N)
@@ -195,38 +143,41 @@ void SetupTransmitModulatedSincPulseBuffer(){
  * @param carrierFreq	The frequency to modulate at 	(e.g. 0.25 CBW)
  * @param delay			the fractional delay in samples to allow for sync (e.g. 0.5 is one half sample delay)
  */
-void setupTransmitBuffer(short* tBuffer, short halfBufLen, float sincBandwidth, float carrierFreq, float delay){
+void setupTransmitBuffer(short tBuffer[], short halfBufLen, float sincBandwidth, float carrierFreq, float delay){
 
 	//i is index per element, y is temp for output
 	int idx;
-	float x, y, t;
+	double x, y, t;
+	double cosine, sine, denom;
 
 	for (idx=-halfBufLen;idx<=halfBufLen;idx++){
 		x = (idx - delay) * sincBandwidth;
 		t = (idx - delay) * carrierFreq;
 		if (x == 0.00000) //floating point check if delay is too close to 1 or 0 to keep division by zero from occurring
 			y = 1.0;
-		else
-			y = cos(2*PI*t)*(sin(PI*x)/(PI*x)); // modulated sinc pulse at carrier freq = fs/4
+		else {
+			cosine = cos(2*PI*t);
+			sine = sin(PI*x);
+			denom = (PI*x);
+			y = (cosine * sine / denom);
+		}
 
-		*(tBuffer + idx + halfBufLen) = (short)(y*32767);
+			//y = cos(2*PI*t)*(sin(PI*x)/(PI*x)); // modulated sinc pulse at carrier freq = fs/4
+			//y = 1.0;
+		tBuffer[idx + halfBufLen] = (short)(y*32767);
 	}
 }
-
 
 /**
-	Sets up the buffer used for matched filtering of the sinc pulse
-*/
-void SetupReceiveBasebandSincPulseBuffer(){
-	for (i=-N;i<=N;i++){
-		x = i*BW;
-		if (i!=0)
-			y = sin(PI*x)/(PI*x); // double
-		else
-			y = 1.0;
-		basebandSincRef[i+N] = (float) y;
+ * used for copying from the giant array buffer into N2
+ */
+void copyTransmitBuffer(short srcBuffer[], short dstBuffer[], short bufLength){
+	int index;
+	for (index = 0; index < bufLength; index++){
+		dstBuffer[index] = srcBuffer[index];
 	}
 }
+
 
 /**
  * sets up a buffer with an unmodulated sinc pulse centered at x=0
@@ -242,20 +193,6 @@ void setupBasebandSincBuffer(float* buffer, short halfBufLen, float sincBandwidt
 		else
 			y = 1.0;
 		*(buffer + i + halfBufLen) = (float) y;
-	}
-}
-
-/**
-	Sets up the matched filter buffers which are used for matching and filtering of the incoming sines and cosines
-*/
-void SetupReceiveTrigonometricMatchedFilters(){
-	for (i=0;i<M;i++){
-		t = i*CBW;				// time
-		y = cos(2*PI*t);		// cosine matched filter (double)
-		matchedFilterCosine[i] = (float) y;		// cast and store
-		y = sin(2*PI*t);		// sine matched filter (double)
-		matchedFilterSine[i] = (float) y;     // cast and store
-		buf[i] = 0;             // clear searching buffer
 	}
 }
 
@@ -416,6 +353,7 @@ int calculateNewSynchronizationTimeSlaveFine(int vclock_counter, float* fine_del
  * @param fde_index					index offset for the array indicating the latest estimate
  * @return	The new virtual clock tick to center around to transmit
  */
+/*
 float masterMirrorResponseTime(float* fine_delay_estimate_array, short fde_index){
 	int curVClockTime = vclock_counter;
 	int wrappedTime = SMALL_VCLK_WRAP(vclock_counter);
@@ -440,6 +378,8 @@ float masterMirrorResponseTime(float* fine_delay_estimate_array, short fde_index
 	return wrappedMasterTime;
 
 }
+*/
+
 /**
  * Gets the fractional part of the calculated center time to transmit at for the array recalculation function
  * @param mirroredResponseTime

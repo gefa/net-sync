@@ -39,38 +39,24 @@
 // ------------------------------------------
 // start of variables
 // ------------------------------------------
-extern volatile short state;
 
 volatile int vclock_counter = 0; // virtual clock counter
 
+short delayIndex = 0;
+#define delayMax 6
+
 //Output waveform buffers for clock and sync channels
-short tClockSincPulse[N2];
-short tVerifSincPulse[N2];
-short tVerifSincPulsePhased[N2];
+short standardWaveformBuffer[N2];
+short delayedWaveformBuffer[N2];
 
-extern short tCoarseVerifSincePulseFlag = 0; //flag for possibly outputting a phased output
+short allMyDelayedWaveforms[delayMax][N2];
 
-volatile int virClockTransmitCenterSinc = 0;			//center for sinc pulse according to vclock_counter
-volatile int virClockTransmitCenterVerify = 0;		//center for the verification pulse on the second channel
+float sin_lookup[256];	//Used for math lookup abillities.
+float cos_lookup[256];
 
+float runningDelay = 0.0;
 
-//Check whether the delay by N could cause the half sample,
-//As the full buffer is 2N+1, instead of just 2N
-
-int coarse_delay_estimate[MAX_STORED_DELAYS_COARSE];		//delay estimates by receiving estimator
-float fine_delay_estimate[MAX_STORED_DELAYS_FINE];
-int coarse_master_clock_estimate[MAX_STORED_DELAYS_COARSE];	//estimate in vclock counter time when the masters clock tick is
-float fine_master_clock_estimate[MAX_STORED_DELAYS_FINE];	//primarily used for the fine side where we need to estimate into the future for sync
-short cde_index = 0;
-short fde_index = 0;
-
-volatile short state = 0; //initialize in main()
-
-extern short searchingStateTimeoutCounter = 0;
-
-// ISR combos
-union {uint32_t combo; short channel[2];} tempOutput;
-union {uint32_t combo; short channel[2];} tempInput;
+volatile int state = 0;
 
 // Handles
 DSK6713_AIC23_CodecHandle hCodec;							// Codec handle
@@ -86,28 +72,31 @@ interrupt void serialPortRcvISR(void);
 
 void main()
 {
-	//Set initial state
-	if(NODE_TYPE==MASTER_NODE)
-		state = STATE_SEARCHING;
-	else if(NODE_TYPE==SLAVE_NODE)
-		state = STATE_TRANSMIT;
 
-	// reset coarse and fine delay estimate buffers
-	for (i=0;i<MAX_STORED_DELAYS_COARSE;i++)
-		coarse_delay_estimate[i] = 0;
-		fine_delay_estimate[i] = 0.0;
+	setupTransmitBuffer(standardWaveformBuffer, N, BW, CBW, 0.0);
+	setupTransmitBuffer(delayedWaveformBuffer, N, BW, CBW, 0.0);
 
-	// set up the cosine and sin matched filters for searching
-	// also initialize searching buffer
-	setupQuadratureCarrierWaveFilterBuffer(matchedFilterCosine, matchedFilterSine, M, CBW);	//matched filtering for detecting carrier during search
-	setupBasebandSincBuffer(basebandSincRef, N, BW);										//
-	setupTransmitBuffer(tClockSincPulse, N, BW, CBW, 0.0f);
-	setupTransmitBuffer(tVerifSincPulse, N, BW, CBW, 0.0f);
-	setupTransmitBuffer(tVerifSincPulsePhased, N, BW, CBW, 0.5f);
+	int idx;
+	for(idx = 0; idx < delayMax; idx++){
+		ToggleDebugGPIO(0);
+		setupTransmitBuffer(&(allMyDelayedWaveforms[idx][0]), N, BW, CBW, ((float) idx) / delayMax);
+		ToggleDebugGPIO(0);
+	}
+
 
 	// -------- DSK Hardware Setup --------
 	DSK6713_init();		// Initialize the board support library, must be called first
 	DSK6713_LED_init(); // initialize LEDs
+
+	//Setup GPIO for possible debug
+	gpioInit();
+
+	//test
+/*
+	float del;
+
+*/
+
     hCodec = DSK6713_AIC23_openCodec(0, &config);	// open codec and get handle
 
 	// Configure buffered serial ports for 32 bit operation
@@ -120,8 +109,7 @@ void main()
 	// set codec sampling frequency
 	DSK6713_AIC23_setFreq(hCodec, DSK_SAMPLE_FREQ);
 
-	//Setup GPIO for possible debug
-	gpioInit();
+
 
 	// interrupt setup
 	IRQ_globalDisable();			// Globally disables interrupts
@@ -130,56 +118,21 @@ void main()
 	IRQ_enable(IRQ_EVT_RINT1);		// Enables the event
 	IRQ_globalEnable();				// Globally enables interrupts
 
+
 	// -------- End DSK Hardware Setup --------
 
 	while(1)						// main loop
 	{
-		if (state!=STATE_CALCULATION) {
-			//Do nothing
-			//Maybe calculate the question to 42 if we have time
-		}
-		else if (state==STATE_CALCULATION){
+		if(state == 1){ //in the section between end of buffer and next buffer start
+			ToggleDebugGPIO(0);
+			delayIndex += 1;
+			if (delayIndex >= delayMax)
+				delayIndex = 0;
 
-			// -----------------------------------------------
-			// this is where we estimate the time of arrival
-			// -----------------------------------------------
-			//does down mixing on the incoming signal. ONLY WORKS for current CBW
-			quarterWavePulseDownmix(recbuf, downMixedCosine, downMixedSine, 2*N+2*M);
-			//get timing estimates
-			runReceviedSincPulseTimingAnalysis();
-
-			#if USE_FDE		//Fine Estimation
-				#if (NODE_TYPE==MASTER_NODE)
-					float mirroredResponseTime = masterMirrorResponseTime(fine_delay_estimate, fde_index);
-					float delayLevel = getMasterDelayLevelFromResponseTime(mirroredResponseTime);		//These two functions must work in tandem
-					int newVirClockResponseTime = getMasterIntegerResponseTime(mirroredResponseTime);   //These two functions must work in tandem
-					setupTransmitBuffer(tClockSincPulse, N, BW, CBW, delayLevel);			//Calculate the buffer based on the new delay level
-
-					virClockTransmitCenterSinc = newVirClockResponseTime; 	//Possibly add a check here adding two clock periods based on level
-
-					//Possibly add final check on virClock transmit here to make sure we're not too late after calculating the new buffer?
-
-				#elif (NODE_TYPE==SLAVE_NODE)
-
-
-
-
-				#endif
-			#else			//Coarse estimation
-				#if (NODE_TYPE==MASTER_NODE)
-
-
-				#elif (NODE_TYPE==SLAVE_NODE)
-
-
-				#endif
-			#endif
-
-			//Enter transmission state after reception
-			state = STATE_TRANSMIT;
-			while(state == STATE_TRANSMIT){
-				//wait for ISR to bring us back to searching after transmission has finished
-			}
+			short* sourceBuffer = &(allMyDelayedWaveforms[delayIndex][0]); //INITIALIZE THIS!
+			copyTransmitBuffer(sourceBuffer, delayedWaveformBuffer, N2);
+			while(state == 1); //wait
+			ToggleDebugGPIO(0);
 		}
 	}
 }
@@ -192,6 +145,9 @@ void main()
  */
 interrupt void serialPortRcvISR()
 {
+	union {uint32_t combo; short channel[2];} tempOutput;
+	union {uint32_t combo; short channel[2];} tempInput;
+
 	tempInput.combo = MCBSP_read(DSK6713_AIC23_DATAHANDLE);
 	tempOutput.combo = 0; //Set to zero now for missed sets.
 	// Note that right channel is in temp.channel[0]
@@ -200,123 +156,25 @@ interrupt void serialPortRcvISR()
 	//Clock counter wrap
 	vclock_counter++; //Note! --- Not sure of the effects of moving the increment to the top
 	//Code should be common to both
-	if(vclock_counter >= LARGE_VCLK_MAX){ //this will likely never happen
+	if(vclock_counter >= VCLK_MAX){ //this will likely never happen
 		vclock_counter = 0;
 	}
 
+	if (vclock_counter == 1025)
+		state = 1;
+	else
+		state = 0;
 
-	//Logic for different states is the same on both master and slave sides when expecting to receive
-	if (state ==		STATE_SEARCHING) {
-		runSearchingStateCodeISR(); //Possibly timeout to transmit as slave
+	//Change from zero output to waveform
+	if(vclock_counter <= N2-1){
+		tempOutput.channel[CHANNEL_LEFT] = standardWaveformBuffer[vclock_counter];
+		tempOutput.channel[CHANNEL_RIGHT] = delayedWaveformBuffer[vclock_counter];
 	}
-	else if (state ==	STATE_RECORDING) {
-		runRecordingStateCodeISR();
-	}
-	else if(state ==	STATE_CALCULATION){
-		runCalculationStateCodeISR();
-	}
-	else if(state ==	STATE_TRANSMIT){
-		runSincPulseTransmitISR();	//this function will change system state when it's done
-	}
-	else {
-		//ERROR in STATE CODE LOGIC
-	}
-	//Always Outputs synchronized pulse on aux channel
-		runVerifyPulseTransmitISR();
-		
+
 
 	//Write the output sample to the audio codec
 	MCBSP_write(DSK6713_AIC23_DATAHANDLE, tempOutput.combo);
 
-}
-
-/**
- * Handles the searching for peak function of the incoming waveform
- */
-void runSearchingStateCodeISR(){
-
-		// put sample in searching buffer
-	buf[bufindex] = (float) tempInput.channel[RECEIVE_SINC];  // right channel
-
-	// increment and wrap pointer
-	bufindex++;
-	if (bufindex>=M)
-		bufindex = 0;
-
-	// compute incoherent correlation
-	corrSumCosine = 0;
-	corrSumSine = 0;
-	for(i=0;i<M;i++) {
-		corrSumCosine+= matchedFilterCosine[i]*buf[i];
-		corrSumSine+= matchedFilterSine[i]*buf[i];
-	}
-	corrSumIncoherent = corrSumCosine*corrSumCosine+corrSumSine*corrSumSine;
-
-	if (corrSumIncoherent>T1) {  // should make sure this runs in real-time
-		state = STATE_RECORDING; // enter "recording" state (takes effect in next interrupt)
-		recbuf_start_clock = vclock_counter - M; // virtual clock tick at at start of recording buffer
-												 // (might be negative but doesn't matter)
-		recbufindex = M;		// start recording new samples at position M
-		j = bufindex;			//
-		for (i=0;i<M;i++){  	// copy samples from buf to first M elements of recbuf
-			j++;   				// the first time through, this puts us at the oldest sample
-			if (j>=M)
-				j=0;
-			recbuf[i] = buf[j];
-			buf[j] = 0;  		// clear out searching buffer to avoid false trigger
-		}
-	}
-}
-
-/**
- * Saves the incoming waveform data to the receive buffer for later processing in the main loop
- */
-void runRecordingStateCodeISR(){
-	// put sample in recording buffer
-	recbuf[recbufindex] = (float) tempInput.channel[RECEIVE_SINC];  // right channel
-	recbufindex++;
-	if (recbufindex>=(2*N+2*M)) {
-		state = STATE_CALCULATION;  // buffer is full (stop recording)
-		recbufindex = 0; // shouldn't be necessary
-	}
-}
-
-/**
- * Placeholder to do nothing. Calculations are supposed to be ongoing in the main loop and no input processing / output transmit should occur
- */
-void runCalculationStateCodeISR(){
-	//Do nothing here
-}
-
-/**
- * 	Transmits the synchronizing sinc pulse on the main channel to the other node.
- * 	The value for the center point should be properly calculated based on node type from the other functions
- * 	Is always centered at 0 for the slave, and the mirrored response for the master
- */
-void runSincPulseTransmitISR(){
-	short idxTemp = GetPulseIndex(vclock_counter, virClockTransmitCenterSinc, N);
-	if(idxTemp != -1){
-		tempOutput.channel[TRANSMIT_SINC] = tClockSincPulse[idxTemp];
-	}
-	else{
-		tempOutput.channel[TRANSMIT_SINC] = 0;
-	}
-	if(idxTemp == (N2-1)) //We have reached the end! go to receive
-		state=STATE_SEARCHING;
-}
-
-/**
- *	Adds the second sinc pulse which acts as the verification point. Is centered at 0 always for the master,
- *	and the new observed synchronized time pulse for the slave
- */
-void runVerifyPulseTransmitISR(){
-	short idxTemp = GetPulseIndex(vclock_counter, virClockTransmitCenterVerify, N);
-	if(idxTemp != -1){
-		tempOutput.channel[TRANSMIT_CLOCK] = tVerifSincPulse[idxTemp];
-	}
-	else{
-		tempOutput.channel[TRANSMIT_CLOCK] = 0;
-	}
 }
 
 

@@ -23,12 +23,8 @@
 //Audio codec sample frequency
 #define DSK_SAMPLE_FREQ DSK6713_AIC23_FREQ_8KHZ
 
-// virtual clock counter maximum
-#define LARGE_VCLK_MAX (1<<30) //about two billion (2e9)
-#define SMALL_VCLK_MAX (1<<12) //4096 counts
-
-#define LARGE_VCLK_WRAP(i) ((i)&(LARGE_VCLK_MAX-1))
-#define SMALL_VCLK_WRAP(i) ((i)&(SMALL_VCLK_MAX-1))
+#define VCLK_MAX 8000
+#define CLOCK_WARP(i) ((i)&(VCLK_MAX-1))
 
 #define MAX_STORED_DELAYS_COARSE 16
 #define MAX_STORED_DELAYS_FINE 16

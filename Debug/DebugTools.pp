@@ -2,12 +2,12 @@
 
 DebugTools.obj: ../DebugTools.c
 DebugTools.obj: ../DebugTools.h
-DebugTools.obj: C:/ti/ccsv6/tools/compiler/c6000_7.4.8/include/stdio.h
-DebugTools.obj: C:/ti/ccsv6/tools/compiler/c6000_7.4.8/include/linkage.h
-DebugTools.obj: C:/ti/ccsv6/tools/compiler/c6000_7.4.8/include/stdarg.h
-DebugTools.obj: C:/ti/ccsv6/tools/compiler/c6000_7.4.8/include/stdint.h
-DebugTools.obj: C:/ti/ccsv6/tools/compiler/c6000_7.4.8/include/c6x.h
-DebugTools.obj: C:/ti/ccsv6/tools/compiler/c6000_7.4.8/include/vect.h
+DebugTools.obj: C:/ti/ccsv6/tools/compiler/c6000_7.4.12/include/stdio.h
+DebugTools.obj: C:/ti/ccsv6/tools/compiler/c6000_7.4.12/include/linkage.h
+DebugTools.obj: C:/ti/ccsv6/tools/compiler/c6000_7.4.12/include/stdarg.h
+DebugTools.obj: C:/ti/ccsv6/tools/compiler/c6000_7.4.12/include/stdint.h
+DebugTools.obj: C:/ti/ccsv6/tools/compiler/c6000_7.4.12/include/c6x.h
+DebugTools.obj: C:/ti/ccsv6/tools/compiler/c6000_7.4.12/include/vect.h
 DebugTools.obj: C:/Program\ Files/C6xCSL/include/csl.h
 DebugTools.obj: C:/Program\ Files/C6xCSL/include/csl_chip.h
 DebugTools.obj: C:/Program\ Files/C6xCSL/include/csl_stdinc.h
@@ -24,26 +24,26 @@ DebugTools.obj: C:/Program\ Files/C6xCSL/include/csl_gpio.h
 DebugTools.obj: C:/Program\ Files/C6xCSL/include/csl_gpiohal.h
 DebugTools.obj: C:/Program\ Files/C6xCSL/include/csl_mcbsp.h
 DebugTools.obj: C:/Program\ Files/C6xCSL/include/csl_mcbsphal.h
-DebugTools.obj: C:/ti/ccsv6/tools/compiler/c6000_7.4.8/include/math.h
-DebugTools.obj: C:/ti/ccsv6/tools/compiler/c6000_7.4.8/include/float.h
-DebugTools.obj: C:/ti/ccsv6/tools/compiler/c6000_7.4.8/include/access.h
-DebugTools.obj: C:/ti/ccsv6/tools/compiler/c6000_7.4.8/include/elfnames.h
-DebugTools.obj: C:/ti/ccsv6/tools/compiler/c6000_7.4.8/include/mathf.h
-DebugTools.obj: C:/ti/ccsv6/tools/compiler/c6000_7.4.8/include/unaccess.h
-DebugTools.obj: C:/ti/ccsv6/tools/compiler/c6000_7.4.8/include/mathl.h
-DebugTools.obj: C:/ti/ccsv6/tools/compiler/c6000_7.4.8/include/unaccess.h
+DebugTools.obj: C:/ti/ccsv6/tools/compiler/c6000_7.4.12/include/math.h
+DebugTools.obj: C:/ti/ccsv6/tools/compiler/c6000_7.4.12/include/float.h
+DebugTools.obj: C:/ti/ccsv6/tools/compiler/c6000_7.4.12/include/access.h
+DebugTools.obj: C:/ti/ccsv6/tools/compiler/c6000_7.4.12/include/elfnames.h
+DebugTools.obj: C:/ti/ccsv6/tools/compiler/c6000_7.4.12/include/mathf.h
+DebugTools.obj: C:/ti/ccsv6/tools/compiler/c6000_7.4.12/include/unaccess.h
+DebugTools.obj: C:/ti/ccsv6/tools/compiler/c6000_7.4.12/include/mathl.h
+DebugTools.obj: C:/ti/ccsv6/tools/compiler/c6000_7.4.12/include/unaccess.h
 DebugTools.obj: C:/TI_DSK/dsk6713revc_files/CCStudio/c6000/dsk6713/include/dsk6713.h
 DebugTools.obj: C:/TI_DSK/dsk6713revc_files/CCStudio/c6000/dsk6713/include/dsk6713_aic23.h
 DebugTools.obj: C:/TI_DSK/dsk6713revc_files/CCStudio/c6000/dsk6713/include/dsk6713_led.h
 
 ../DebugTools.c: 
 ../DebugTools.h: 
-C:/ti/ccsv6/tools/compiler/c6000_7.4.8/include/stdio.h: 
-C:/ti/ccsv6/tools/compiler/c6000_7.4.8/include/linkage.h: 
-C:/ti/ccsv6/tools/compiler/c6000_7.4.8/include/stdarg.h: 
-C:/ti/ccsv6/tools/compiler/c6000_7.4.8/include/stdint.h: 
-C:/ti/ccsv6/tools/compiler/c6000_7.4.8/include/c6x.h: 
-C:/ti/ccsv6/tools/compiler/c6000_7.4.8/include/vect.h: 
+C:/ti/ccsv6/tools/compiler/c6000_7.4.12/include/stdio.h: 
+C:/ti/ccsv6/tools/compiler/c6000_7.4.12/include/linkage.h: 
+C:/ti/ccsv6/tools/compiler/c6000_7.4.12/include/stdarg.h: 
+C:/ti/ccsv6/tools/compiler/c6000_7.4.12/include/stdint.h: 
+C:/ti/ccsv6/tools/compiler/c6000_7.4.12/include/c6x.h: 
+C:/ti/ccsv6/tools/compiler/c6000_7.4.12/include/vect.h: 
 C:/Program\ Files/C6xCSL/include/csl.h: 
 C:/Program\ Files/C6xCSL/include/csl_chip.h: 
 C:/Program\ Files/C6xCSL/include/csl_stdinc.h: 
@@ -60,14 +60,14 @@ C:/Program\ Files/C6xCSL/include/csl_gpio.h:
 C:/Program\ Files/C6xCSL/include/csl_gpiohal.h: 
 C:/Program\ Files/C6xCSL/include/csl_mcbsp.h: 
 C:/Program\ Files/C6xCSL/include/csl_mcbsphal.h: 
-C:/ti/ccsv6/tools/compiler/c6000_7.4.8/include/math.h: 
-C:/ti/ccsv6/tools/compiler/c6000_7.4.8/include/float.h: 
-C:/ti/ccsv6/tools/compiler/c6000_7.4.8/include/access.h: 
-C:/ti/ccsv6/tools/compiler/c6000_7.4.8/include/elfnames.h: 
-C:/ti/ccsv6/tools/compiler/c6000_7.4.8/include/mathf.h: 
-C:/ti/ccsv6/tools/compiler/c6000_7.4.8/include/unaccess.h: 
-C:/ti/ccsv6/tools/compiler/c6000_7.4.8/include/mathl.h: 
-C:/ti/ccsv6/tools/compiler/c6000_7.4.8/include/unaccess.h: 
+C:/ti/ccsv6/tools/compiler/c6000_7.4.12/include/math.h: 
+C:/ti/ccsv6/tools/compiler/c6000_7.4.12/include/float.h: 
+C:/ti/ccsv6/tools/compiler/c6000_7.4.12/include/access.h: 
+C:/ti/ccsv6/tools/compiler/c6000_7.4.12/include/elfnames.h: 
+C:/ti/ccsv6/tools/compiler/c6000_7.4.12/include/mathf.h: 
+C:/ti/ccsv6/tools/compiler/c6000_7.4.12/include/unaccess.h: 
+C:/ti/ccsv6/tools/compiler/c6000_7.4.12/include/mathl.h: 
+C:/ti/ccsv6/tools/compiler/c6000_7.4.12/include/unaccess.h: 
 C:/TI_DSK/dsk6713revc_files/CCStudio/c6000/dsk6713/include/dsk6713.h: 
 C:/TI_DSK/dsk6713revc_files/CCStudio/c6000/dsk6713/include/dsk6713_aic23.h: 
 C:/TI_DSK/dsk6713revc_files/CCStudio/c6000/dsk6713/include/dsk6713_led.h: 

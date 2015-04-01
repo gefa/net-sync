@@ -84,21 +84,22 @@ extern volatile int recbuf_start_clock; // virtual clock counter for first sampl
 double sin(double);
 double cos(double);
 double atan2(double,double);
+//my sums
 float sumFloatArray(float*, short numElmts);
 long sumIntArray(short* array, short numElmts);
 
 //Setup Functions
-void SetupTransmitModulatedSincPulseBuffer();
-void setupTransmitBuffer(short* tBuffer, short halfBufLen, float sincBandwidth, float carrierFreq, float delay);
-void SetupReceiveBasebandSincPulseBuffer();
+void setupTransmitBuffer(short tBuffer[], short halfBufLen, float sincBandwidth, float carrierFreq, float delay);
 void setupBasebandSincBuffer(float* buffer, short halfBufLen, float sincBandwidth);
-void SetupReceiveTrigonometricMatchedFilters();
 void setupQuadratureCarrierWaveFilterBuffer(float* inPhaseBuffer, float* quadraturebuffer, short bufLen, float cFreq);
 
+void setupTrigLookupTables(float* sinArray, float* cosArray, short bufLength);
+
+//copy functions
+void copyTransmitBuffer(short srcBuffer[], short dstBuffer[], short bufLength);
+
 //Analysis functions
-void runReceivedPulseBufferDownmixing();
 void quarterWavePulseDownmix(float* receiveBuf, float* dmCos, float* dmSin, short receiveBufSize);
-void runReceviedSincPulseTimingAnalysis();
 
 // Time Calc Functions
 int calculateNewSynchronizationTimeSlaveCoarse(int curTime, int delayEstimate);

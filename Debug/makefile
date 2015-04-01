@@ -4,15 +4,15 @@
 
 SHELL = cmd.exe
 
-CG_TOOL_ROOT := C:/ti/ccsv6/tools/compiler/c6000_7.4.8
+CG_TOOL_ROOT := C:/ti/ccsv6/tools/compiler/c6000_7.4.12
 
 ORDERED_OBJS += \
-$(GEN_CMDS__FLAG) \
-"./vectors.obj" \
-"./time_stamper_master.obj" \
-"./MathCalculations.obj" \
 "./DebugTools.obj" \
+"./MathCalculations.obj" \
+"./time_stamper_master.obj" \
+"./vectors.obj" \
 "../C6713.cmd" \
+$(GEN_CMDS__FLAG) \
 -l"libc.a" \
 -l"C:\Program Files\C6xCSL\lib_3x\csl6713.lib" \
 -l"C:\TI_DSK\dsk6713revc_files\CCStudio\c6000\dsk6713\lib\dsk6713bsl.lib" \
@@ -53,11 +53,11 @@ endif
 ifneq ($(strip $(C67_DEPS)),)
 -include $(C67_DEPS)
 endif
-ifneq ($(strip $(C??_DEPS)),)
--include $(C??_DEPS)
-endif
 ifneq ($(strip $(CLA_DEPS)),)
 -include $(CLA_DEPS)
+endif
+ifneq ($(strip $(C??_DEPS)),)
+-include $(C??_DEPS)
 endif
 ifneq ($(strip $(CPP_DEPS)),)
 -include $(CPP_DEPS)
@@ -86,6 +86,9 @@ endif
 ifneq ($(strip $(C43_DEPS)),)
 -include $(C43_DEPS)
 endif
+ifneq ($(strip $(INO_DEPS)),)
+-include $(INO_DEPS)
+endif
 ifneq ($(strip $(S67_DEPS)),)
 -include $(S67_DEPS)
 endif
@@ -97,6 +100,9 @@ ifneq ($(strip $(S43_DEPS)),)
 endif
 ifneq ($(strip $(OPT_DEPS)),)
 -include $(OPT_DEPS)
+endif
+ifneq ($(strip $(PDE_DEPS)),)
+-include $(PDE_DEPS)
 endif
 ifneq ($(strip $(S64_DEPS)),)
 -include $(S64_DEPS)
@@ -132,13 +138,13 @@ all: time_stamper_master.out
 time_stamper_master.out: $(OBJS) $(CMD_SRCS) $(GEN_CMDS)
 	@echo 'Building target: $@'
 	@echo 'Invoking: C6000 Linker'
-	"C:/ti/ccsv6/tools/compiler/c6000_7.4.8/bin/cl6x" -mv6713 --abi=coffabi -g --define=CHIP_6713 --display_error_number --diag_warning=225 --diag_wrap=off --mem_model:const=far --mem_model:data=far -z --stack_size=0x400 -m"time_stamper_master.map" --heap_size=0x400 -i"C:/ti/ccsv6/tools/compiler/c6000_7.4.8/lib" -i"C:/ti/ccsv6/tools/compiler/c6000_7.4.8/include" --reread_libs --warn_sections --display_error_number --diag_wrap=off --xml_link_info="time_stamper_master_linkInfo.xml" --rom_model -o "time_stamper_master.out" $(ORDERED_OBJS)
+	"C:/ti/ccsv6/tools/compiler/c6000_7.4.12/bin/cl6x" -mv6713 --abi=coffabi -g --define=CHIP_6713 --display_error_number --diag_warning=225 --diag_wrap=off --mem_model:const=far --mem_model:data=far -z --stack_size=0x2000 -m"time_stamper_master.map" --heap_size=0x400 -i"C:/ti/ccsv6/tools/compiler/c6000_7.4.12/lib" -i"C:/ti/ccsv6/tools/compiler/c6000_7.4.12/include" --reread_libs --warn_sections --display_error_number --diag_wrap=off --xml_link_info="time_stamper_master_linkInfo.xml" --rom_model -o "time_stamper_master.out" $(ORDERED_OBJS)
 	@echo 'Finished building target: $@'
 	@echo ' '
 
 time_stamper_master.hex: $(EXE_OUTPUTS)
 	@echo 'Invoking: C6000 Hex Utility'
-	"C:/ti/ccsv6/tools/compiler/c6000_7.4.8/bin/hex6x"  -o "time_stamper_master.hex" $(EXE_OUTPUTS__QUOTED)
+	"C:/ti/ccsv6/tools/compiler/c6000_7.4.12/bin/hex6x"  -o "time_stamper_master.hex" $(EXE_OUTPUTS__QUOTED)
 	@echo 'Finished building: $@'
 	@echo ' '
 
