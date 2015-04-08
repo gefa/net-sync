@@ -138,7 +138,7 @@ all: time_stamper_master.out
 time_stamper_master.out: $(OBJS) $(CMD_SRCS) $(GEN_CMDS)
 	@echo 'Building target: $@'
 	@echo 'Invoking: C6000 Linker'
-	"C:/ti/ccsv6/tools/compiler/c6000_7.4.12/bin/cl6x" -mv6713 --abi=coffabi -g --define=CHIP_6713 --display_error_number --diag_warning=225 --diag_wrap=off --mem_model:const=far --mem_model:data=far -z --stack_size=0x2000 -m"time_stamper_master.map" --heap_size=0x400 -i"C:/ti/ccsv6/tools/compiler/c6000_7.4.12/lib" -i"C:/ti/ccsv6/tools/compiler/c6000_7.4.12/include" --reread_libs --warn_sections --display_error_number --diag_wrap=off --xml_link_info="time_stamper_master_linkInfo.xml" --rom_model -o "time_stamper_master.out" $(ORDERED_OBJS)
+	"C:/ti/ccsv6/tools/compiler/c6000_7.4.12/bin/cl6x" -mv6713 --abi=coffabi -g --define=CHIP_6713 --display_error_number --diag_warning=225 --diag_wrap=off --mem_model:const=far --mem_model:data=far -z --stack_size=0x800 -m"time_stamper_master.map" --heap_size=0x400 -i"C:/ti/ccsv6/tools/compiler/c6000_7.4.12/lib" -i"C:/ti/ccsv6/tools/compiler/c6000_7.4.12/include" --reread_libs --warn_sections --display_error_number --diag_wrap=off --xml_link_info="time_stamper_master_linkInfo.xml" --rom_model -o "time_stamper_master.out" $(ORDERED_OBJS)
 	@echo 'Finished building target: $@'
 	@echo ' '
 

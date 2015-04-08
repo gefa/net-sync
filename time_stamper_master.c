@@ -45,14 +45,15 @@ volatile int vclock_counter = 0; // virtual clock counter
 short delayIndex = 0;
 #define delayMax 6
 
+float fineDelayIndex = 0.0;
+#define fineDelayMax 8.0
+
 //Output waveform buffers for clock and sync channels
 short standardWaveformBuffer[N2];
 short delayedWaveformBuffer[N2];
 
 short allMyDelayedWaveforms[delayMax][N2];
 
-float sin_lookup[256];	//Used for math lookup abillities.
-float cos_lookup[256];
 
 float runningDelay = 0.0;
 
@@ -76,12 +77,16 @@ void main()
 	setupTransmitBuffer(standardWaveformBuffer, N, BW, CBW, 0.0);
 	setupTransmitBuffer(delayedWaveformBuffer, N, BW, CBW, 0.0);
 
+	//For delayed buffer approach
 	int idx;
 	for(idx = 0; idx < delayMax; idx++){
 		ToggleDebugGPIO(0);
 		setupTransmitBuffer(&(allMyDelayedWaveforms[idx][0]), N, BW, CBW, ((float) idx) / delayMax);
 		ToggleDebugGPIO(0);
 	}
+
+	setupTrigLookupTables(sin_lookup_table, trigLookupSize);
+
 
 
 	// -------- DSK Hardware Setup --------
@@ -123,6 +128,21 @@ void main()
 
 	while(1)						// main loop
 	{
+		//Not working loop
+		if(state == 1){
+			ToggleDebugGPIO(0);
+			fineDelayIndex += 0.2501;
+			if (fineDelayIndex >= fineDelayMax)
+				fineDelayIndex = 0.0;
+
+			setupTransmitBufferTest(delayedWaveformBuffer, N, BW, CBW, fineDelayIndex);
+
+
+			while(state == 1); //wait
+			ToggleDebugGPIO(0);
+		}
+		/*
+		//Working loop
 		if(state == 1){ //in the section between end of buffer and next buffer start
 			ToggleDebugGPIO(0);
 			delayIndex += 1;
@@ -134,6 +154,7 @@ void main()
 			while(state == 1); //wait
 			ToggleDebugGPIO(0);
 		}
+		*/
 	}
 }
 
@@ -161,14 +182,14 @@ interrupt void serialPortRcvISR()
 	}
 
 	if (vclock_counter == 1025)
-		state = 1;
+		state = 1; //update waveforms
 	else
 		state = 0;
 
 	//Change from zero output to waveform
 	if(vclock_counter <= N2-1){
-		tempOutput.channel[CHANNEL_LEFT] = standardWaveformBuffer[vclock_counter];
-		tempOutput.channel[CHANNEL_RIGHT] = delayedWaveformBuffer[vclock_counter];
+		tempOutput.channel[CHANNEL_RIGHT] = standardWaveformBuffer[vclock_counter];
+		tempOutput.channel[CHANNEL_LEFT] = delayedWaveformBuffer[vclock_counter];
 	}
 
 

@@ -78,22 +78,32 @@ extern short max_samp;
 
 extern volatile int recbuf_start_clock; // virtual clock counter for first sample in recording buffer
 
+#define trigLookupSize 4095
 
+extern float sin_lookup_table[trigLookupSize + 1];	//Used for math lookup abillities.
 
 //Basic Math Helpers
 double sin(double);
 double cos(double);
 double atan2(double,double);
+double floor(double);
+
+float sin_lookup(float arg, float sinTable[], short tableLength);
+float cos_lookup(float arg, float sinTable[], short tableLength);
+
 //my sums
 float sumFloatArray(float*, short numElmts);
 long sumIntArray(short* array, short numElmts);
 
 //Setup Functions
 void setupTransmitBuffer(short tBuffer[], short halfBufLen, float sincBandwidth, float carrierFreq, float delay);
+void setupTransmitBufferTest(short tBuffer[], short halfBufLen, float sincBandwidth, float carrierFreq, float delay);
 void setupBasebandSincBuffer(float* buffer, short halfBufLen, float sincBandwidth);
 void setupQuadratureCarrierWaveFilterBuffer(float* inPhaseBuffer, float* quadraturebuffer, short bufLen, float cFreq);
 
-void setupTrigLookupTables(float* sinArray, float* cosArray, short bufLength);
+void setupTrigLookupTables(float sinArray[], short bufLength);
+
+
 
 //copy functions
 void copyTransmitBuffer(short srcBuffer[], short dstBuffer[], short bufLength);

@@ -37,6 +37,10 @@ short max_samp = 0;
 
 volatile int recbuf_start_clock = 0; // virtual clock counter for first sample in recording buffer
 
+float sin_lookup_table[trigLookupSize + 1];	//Used for math lookup abillities.
+
+//#define USE_FIRST_LOOKUP
+
 
 /**
  * Calculates the delay estimates
@@ -112,25 +116,25 @@ void runReceviedSincPulseTimingAnalysis(){
  * @param dmSin			Quadrature baseband buffer
  * @param receiveBufSize Size of the buffer
  */
-void quarterWavePulseDownmix(float* receiveBuf, float* dmCos, float* dmSin, short receiveBufSize){
+void quarterWavePulseDownmix(float receiveBuf[], float dmCos[], float dmSin[], short receiveBufSize){
 	// downmix (had problems using sin/cos here so used a trick)
 	/* The trick is based on the incoming frequency per sample being (n * pi/2), so every other sample goes to zero,
 	 * while the non-zero components sin() multiplicative factor is unity/1 */
 	for (i=0;i<receiveBufSize;i+=4){
-		*(dmCos + i) = *(receiveBuf+i);
-		*(dmSin + i) = 0;
+		dmCos[i] = receiveBuf[i];
+		dmSin[i] = 0;
  	}
 	for (i=1;i<(2*N+2*M);i+=4){
-		*(dmCos + i) = 0;
-		*(dmSin + i) = *(receiveBuf+i);
+		dmCos[i] = 0;
+		dmSin[i] = receiveBuf[i];
 	}
 	for (i=2;i<(2*N+2*M);i+=4){
-		*(dmCos + i) = -(*(receiveBuf+i));
-		*(dmSin + i) = 0;
+		dmCos[i] = -receiveBuf[i];
+		dmSin[i] = 0;
 	}
 	for (i=3;i<(2*N+2*M);i+=4){
-		*(dmCos + i) = 0;
-		*(dmSin + i) = -(*(receiveBuf+i));
+		dmCos[i] = 0;
+		dmSin[i] = -receiveBuf[i];
 	}
 }
 
@@ -148,7 +152,6 @@ void setupTransmitBuffer(short tBuffer[], short halfBufLen, float sincBandwidth,
 	//i is index per element, y is temp for output
 	int idx;
 	double x, y, t;
-	double cosine, sine, denom;
 
 	for (idx=-halfBufLen;idx<=halfBufLen;idx++){
 		x = (idx - delay) * sincBandwidth;
@@ -156,15 +159,100 @@ void setupTransmitBuffer(short tBuffer[], short halfBufLen, float sincBandwidth,
 		if (x == 0.00000) //floating point check if delay is too close to 1 or 0 to keep division by zero from occurring
 			y = 1.0;
 		else {
-			cosine = cos(2*PI*t);
-			sine = sin(PI*x);
-			denom = (PI*x);
-			y = (cosine * sine / denom);
+			y = (cos(2*PI*t) * sin(PI*x) / (PI*x));
 		}
 
 			//y = cos(2*PI*t)*(sin(PI*x)/(PI*x)); // modulated sinc pulse at carrier freq = fs/4
 			//y = 1.0;
 		tBuffer[idx + halfBufLen] = (short)(y*32767);
+	}
+}
+
+/**
+ * Test setup function for dynamically recalculating the buffer based on sine and cosine lookup tables instead of calculations
+ * @param tBuffer
+ * @param halfBufLen
+ * @param sincBandwidth
+ * @param carrierFreq
+ * @param delay
+ */
+void setupTransmitBufferTest(short tBuffer[], short halfBufLen, float sincBandwidth, float carrierFreq, float delay){
+	int idx;
+	float x, y, t;
+
+	for(idx=-halfBufLen;idx<=halfBufLen;idx++){
+		x = (idx - delay) * sincBandwidth;
+		t = (idx - delay) * carrierFreq;
+
+		if ((x <= 0.00001) && (x >= -0.00001)) //floating point check if delay is too close to 1 or 0 to keep division by zero from occurring
+			y = 1.0;
+		else {
+			y = (cos_lookup(2*PI*t, sin_lookup_table, trigLookupSize) * sin_lookup(PI*x, sin_lookup_table, trigLookupSize) / (PI*x));
+		}
+
+		tBuffer[idx + halfBufLen] = (short)(y*32767);
+	}
+}
+
+
+float bringIntoArgRange(float arg){
+	float temp = arg;
+	while (temp >= (2*PI))
+		temp -= (2*PI); //bring within range of [0, 2PI)
+	while (temp < 0)
+		temp += (2*PI);
+
+	return temp;
+}
+
+/**
+ * Lookup table approach to calculating the sine function of an input variable
+ * @param arg argument to sine function
+ * @return result of sine function being fed arg
+ */
+float sin_lookup(float arg, float sinTable[], short tableLength){
+#ifdef USE_FIRST_LOOKUP
+	float temp = arg;
+	while (temp >= (2*PI))
+		temp -= (2*PI); //bring within range of [0, 2PI)
+	while (temp < 0)
+		temp += (2*PI);
+	//Now within [0, 2PI)
+	short tableIdx = (short)(temp * tableLength / (2*PI));
+
+	if (tableIdx >= tableLength) //in case my math sucks?
+		tableIdx = tableLength - 1;
+
+	return sin_lookup_table[tableIdx];
+#else
+	float x = bringIntoArgRange(arg);
+	//Now within [0, 2PI)
+
+	int x1 = (int) (x * trigLookupSize / (2 * PI)); //normalize to idx
+
+	while((x1 < 0) || (x1 >= (trigLookupSize + 1))); //Catch permanent locks due to bad logic
+
+	float y1 = sinTable[x1];
+	float y2 = sinTable[x1+1];
+
+	return y1 + (y2-y1)*(x*trigLookupSize/(2*PI)-x1);
+#endif
+
+}
+float cos_lookup(float arg, float sinTable[], short tableLength){
+	return sin_lookup(PI - arg, sinTable, tableLength); //cheap lookup with identity. Not responsible for potential rounding issues
+}
+
+/**
+ *
+ * @param sinArray
+ * @param cosArray
+ * @param bufLength
+ */
+void setupTrigLookupTables(float sinArray[], short tableLength){
+	int idx; //goes from 0 to tableLength - 1, need to map that to [0, pi]
+	for(idx = 0; idx < tableLength; idx++){
+		sinArray[idx] = (float) sin((double)(idx) * (2*PI) / tableLength);
 	}
 }
 
