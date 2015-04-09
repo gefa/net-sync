@@ -60,6 +60,7 @@
 //#define SLAVE_PULSE_COUNTER_MAX (VCLK_MAX*2)
 
 #define CLOCK_WRAP(i) ((i)&(VCLK_MAX-1)) // index wrapping macro
+#define INDEX_WRAP(x) ((x)&((VCLK_MAX*BUF_SIZE)-1))
 
 // max lag for computing correlations
 #define MAXLAG 200
@@ -70,7 +71,7 @@
 
 //Response buffer size in samples
 #define OUTPUT_BUF_SIZE (2*N+1)
-
+#define BUF_SIZE		4
 // maximum sample value
 #define MAXSAMP 32767;
 
@@ -97,6 +98,10 @@
 #define GPIO_ENABLE_ADDRESS		0x01B00000
 #define GPIO_DIRECTION_ADDRESS	0x01B00004
 #define GPIO_VALUE_ADDRESS		0x01B00008
+
+#define MAXDELAY 100	// this should be renamed to RESOLUTION_OF_FINE_DELAY_ESTIMATE
+#define BW 0.0125 	//100Hz@8k Fs baseband sinc frequency
+#define CBW 0.25 	//2kHz@8k Fs  carrier frequency
 
 #include <stdio.h>
 #include <c6x.h>
@@ -135,6 +140,7 @@ short bufindex = 0;
 float corrSumCosine,corrSumSine,corrSumIncoherent;
 short i,j,k;				// Indices
 double t,x,y;				// More Indices
+float tf,xf,yf;				// More Indices
 float basebandSincRef[2*N+1];   		// baseband sinc pulse buffer
 float recbuf[2*N+2*M]; 		// recording buffer
 float downMixedCosine[2*N+2*M];     		// in-phase downmixed buffer
@@ -148,9 +154,7 @@ volatile int state = STATE_TRANSMIT;
 #endif
 
 volatile short vclock_counter = 0;	// virtual clock counter
-//#define age	40960
-//volatile short vclock_counter_history[age];
-volatile short myage = 0;
+volatile int myage = 0;
 volatile short dedicated_clk = 0;	// make decision at fixed time after sinc peak center
 
 volatile short recbuf_start_clock = 0; // virtual clock counter for first sample in recording buffer
@@ -163,12 +167,40 @@ char r = 0;
 double phase_correction_factor;
 short max_samp = 0;
 
+#if (NODE_TYPE == MASTER_NODE)
+//volatile short ML[VCLK_MAX*BUF_SIZE];
+//volatile short MR[VCLK_MAX*BUF_SIZE];
+volatile short ML[VCLK_MAX*BUF_SIZE];//master response sinc
+volatile short MR[VCLK_MAX*BUF_SIZE];//jus for debug
+#elif (NODE_TYPE == SLAVE_NODE)
+//volatile short SL[VCLK_MAX*BUF_SIZE];
+//volatile short SR[VCLK_MAX*BUF_SIZE];
+volatile short SR[VCLK_MAX];		//slave clock
+volatile short SL[VCLK_MAX*BUF_SIZE];		//static outgoing-sinc from slave
+#endif
+
+
+
+volatile unsigned short run_head = 0;
+volatile unsigned short run_head_sl = 0;
+volatile unsigned short calc_head = 0;
+
 //Master sinc response variables
 volatile short vir_clock_start;
 volatile short CurTime = 0;
 short halfSinc;
+
+//Output waveform buffers for clock and sync channels
+short standardWaveformBuffer[N2];
+short delayedWaveformBuffer[N2];
+#pragma DATA_SECTION(allMyDelayedWaveforms,".mydata")
+far short allMyDelayedWaveforms[MAXDELAY][N2];
+
 short tModulatedSincPulse[OUTPUT_BUF_SIZE];
-short tModulatedSincPulse_delayed[OUTPUT_BUF_SIZE];
+//#pragma DATA_SECTION(tModulatedSincPulse_delayed,".mydata")
+//#pragma DATA_ALIGN (tModulatedSincPulse_delayed, 2)			//dont really need to align
+far short tModulatedSincPulse_delayed[OUTPUT_BUF_SIZE];	//must be extern far according to http://www.ti.com/lit/ug/spru187o/spru187o.pdf page 136
+																//not sure but all variable might be "far" by default
 volatile short even = 1;
 volatile short response_done = 0; 						//not done var for response state
 volatile short response_buf_idx = 0; 					//index for output buffer
@@ -183,8 +215,10 @@ volatile short calculation_done = 0;		//debug
 volatile short v_clk[3];					//debug
 volatile short clk_flag = 0;
 
-#define HISTORY	10
-volatile short debug_history[HISTORY][4];
+#define HISTORY	20
+volatile short debug_history[4][HISTORY];
+int index_history[4][HISTORY];
+volatile float float_history[4][HISTORY];
 //volatile short debug_history2[HISTORY];
 //volatile short debug_history3[HISTORY];
 int age=0;
@@ -228,6 +262,8 @@ interrupt void serialPortRcvISR(void);
 //Helper function prototypes
 void SetupTransmitModulatedSincPulseBuffer();
 void SetupTransmitModulatedSincPulseBufferDelayed();
+void SetupTransmitModulatedSincPulseBufferDelayedFine(float fineDelay);
+void setupTransmitBuffer(short tBuffer[], short halfBufLen, double sincBandwidth, double carrierFreq, double delay);
 void SetupReceiveBasebandSincPulseBuffer();
 void SetupReceiveTrigonometricMatchedFilters();
 void runReceivedPulseBufferDownmixing();
@@ -254,13 +290,48 @@ void runReceviedSincPulseTimingAnalysis();
 void gpioInit();
 void gpioToggle();
 
+int led_prev=0;//not sure how to check led state so just keep local copy
+void toggle_LED(int led)
+{
+	if(led_prev){
+		DSK6713_LED_off(led);
+		led_prev = 0;
+	}else{
+		DSK6713_LED_on(led);
+		led_prev=1;
+	}
+}
+
 void main()
 {
+
+	setupTransmitBuffer(standardWaveformBuffer, N, BW, CBW, 0.0);
+	setupTransmitBuffer(delayedWaveformBuffer, N, BW, CBW, 0.0);
+
+	for(i = 0; i < MAXDELAY; i++){
+		setupTransmitBuffer(&(allMyDelayedWaveforms[i][0]), N, BW, CBW, ((double) i) / MAXDELAY);
+	}
+
 
 	// reset coarse and fine delay estimate buffers
 	for (i=0;i<MAX_STORED_DELAYS_COARSE;i++)
 		coarse_delay_estimate[i] = 0;
 		fine_delay_estimate[i] = 0.0;
+
+#if (NODE_TYPE == MASTER_NODE)
+	for(i=0;i<VCLK_MAX*BUF_SIZE;++i)
+		ML[i] = 0;
+	for(i=0;i<VCLK_MAX*BUF_SIZE;++i)
+		MR[i] = 0;
+#elif (NODE_TYPE == SLAVE_NODE)
+	for(i=0;i<VCLK_MAX;++i)
+		SR[i] = 0;
+	for(i=0;i<VCLK_MAX*BUF_SIZE;++i)
+		SL[i] = 0;
+	//populate SL with zero-delayed sinc
+	for (i=-N;i<=N;i++)
+		SL[INDEX_WRAP(i + N + (VCLK_MAX>>1))] =  allMyDelayedWaveforms[0][i + N];
+#endif
 
 	// set up the cosine and sin matched filters for searching
 	// also initialize searching buffer
@@ -323,7 +394,7 @@ void main()
 
 				// alternative way - portable code
 				volatile short tick_variable = vclock_counter;//variable tick
-				volatile short tick_center_point = CLOCK_WRAP(coarse_delay_estimate[cde_index]);//this does not need to be an array
+				volatile short tick_center_point = CLOCK_WRAP((short)(fine_delay_estimate[fde_index]));//this does not need to be an array
 				volatile short complement_course_estimate = VCLK_MAX - tick_center_point;
 
 
@@ -343,28 +414,27 @@ void main()
 
 				volatile short tick_fixed = tick_variable ;
 
-				// end of aletrnative way - portable code
+				volatile short special_case = -1;
 
-				// ------------------------ master specific code
-				// see description in documentation
 				if(tick_fixed == 0){
-					// wait 3 overflows
-					while(vclock_counter != 0); //wait one additional tick
-					//optimize 3 to 1
-//					while(vclock_counter != 1); //wait for ISR
-//					while(vclock_counter != 0); //wait one additional tick
-//					while(vclock_counter != 1); //wait for ISR
+
+					special_case = 0;
+//					// wait 3 overflows
 //					while(vclock_counter != 0); //wait one additional tick
 
 				}else if(tick_fixed>0 && tick_fixed<=dedicated_clk){
-					// wait 2 overflows
-					while(vclock_counter != 0); //wait one additional tick
-					while(vclock_counter != 1); //wait for ISR
-					while(vclock_counter != 0); //wait one additional tick
+
+					special_case = 1;
+//					// wait 2 overflows
+//					while(vclock_counter != 0); //wait one additional tick
+//					while(vclock_counter != 1); //wait for ISR
+//					while(vclock_counter != 0); //wait one additional tick
 
 				}else if(tick_fixed>dedicated_clk){
-					// wait 1 overflows
-					while(vclock_counter != 0); //wait one additional tick
+
+					special_case = 0;
+//					// wait 1 overflows
+//					while(vclock_counter != 0); //wait one additional tick
 
 				}/*else{
 
@@ -373,15 +443,49 @@ void main()
 
 				}*/
 
-				vir_clock_start = CLOCK_WRAP(complement_course_estimate - N);// start half sinc before sinc center peak
-				// ------------------ end of master specific code
+				//vir_clock_start = CLOCK_WRAP(complement_course_estimate - N);// start half sinc before sinc center peak
 
-				state = STATE_TRANSMIT; //set to response for the ISR to pick the appropriate path
-				ToggleDebugGPIO(STATE_TRANSMIT);
-				while(state == STATE_TRANSMIT) ; //Loop and wait here until the responding output code works
+				volatile short tick_complement = VCLK_MAX - tick_variable;
+				//volatile short wait_ticks = tick_complement + dedicated_clk + tick_complement;
 
-				// --- Prepare for Response State ---
-				//runMasterResponseSincPulseTimingControl();
+				if(!special_case)
+				{
+					volatile short wait_ticks = tick_complement + dedicated_clk + tick_complement;
+					calc_head = INDEX_WRAP(run_head + wait_ticks);
+				}else{
+					volatile short wait_ticks = tick_complement + VCLK_MAX + complement_course_estimate - N;
+					calc_head = INDEX_WRAP(run_head + wait_ticks);
+				}
+
+				if(calc_head < run_head)
+				{
+					index_history[1][myage] = (int)calc_head;
+					index_history[2][myage] = (int)run_head;
+					index_history[2][myage] = (int)(calc_head - run_head);
+					myage++;
+					if(myage==HISTORY)
+						myage = 0;
+				}
+				// two cases
+				// where to put the sinc
+				// calc_head =
+
+				//for debug only... copy zero-delayed sinc to appropriate location
+				for (i=-N;i<=N;i++)
+					MR[INDEX_WRAP(calc_head + i + N)] =  allMyDelayedWaveforms[0][i + N];
+
+				//run recalculation, call that function below
+				SetupTransmitModulatedSincPulseBufferDelayedFine(fine_delay_estimate[fde_index]);
+
+				// no transmit state anymore, when done calculating jusmp to searchiong state
+				state=STATE_SEARCHING;
+				DSK6713_LED_off(STATE_CALCULATION);
+				DSK6713_LED_on(STATE_SEARCHING);
+
+//				state = STATE_TRANSMIT; //set to response for the ISR to pick the appropriate path
+//				ToggleDebugGPIO(STATE_TRANSMIT);
+//				while(state == STATE_TRANSMIT) ; //Loop and wait here until the responding output code works
+
 
 			}
 		#elif (NODE_TYPE==SLAVE_NODE)
@@ -410,7 +514,7 @@ void main()
 
 				// alternative way - portable code
 				volatile short tick_variable = vclock_counter;//variable tick
-				volatile short tick_center_point = CLOCK_WRAP(coarse_delay_estimate[cde_index]);//this does not need to be an array
+				volatile short tick_center_point = CLOCK_WRAP((short)(fine_delay_estimate[fde_index]));//this does not need to be an array
 
 				//patch for error when tick_center_point=0 once in a while
 				//if(tick_center_point!=0)
@@ -444,13 +548,13 @@ void main()
 //					even = 0;
 
 				vclock_offset = sinc_roundtrip_time>>1;//divide by 2
-				vclock_offset = CLOCK_WRAP(vclock_offset); //Actually offsets properly
+				vclock_offset = CLOCK_WRAP(vclock_offset-1); //Actually offsets properly
 				//vclock_offset = CLOCK_WRAP(vclock_offset);
 
-
+				SetupTransmitModulatedSincPulseBufferDelayedFine(fine_delay_estimate[fde_index]);
 
 				while (vclock_counter != vclock_offset) ;//wait for master zero
-				vclock_counter = 0; //correct the vclock
+				vclock_counter = VCLK_MAX; //correct the vclock
 
 				}
 
@@ -480,14 +584,14 @@ interrupt void serialPortRcvISR()
 	// Note that right channel is in temp.channel[0]
 	// Note that left channel is in temp.channel[1]
 
-//	vclock_counter_history[myage]=vclock_counter;
-//	myage++;
-//	if(myage==age)
-//		myage=0;
+	//run_head = INDEX_WRAP(++run_head);
 
 	vclock_counter++; //Note! --- Not sure of the effects of moving the increment to the top
 	//Clock counter wrap
 	#if (NODE_TYPE==MASTER_NODE)
+
+		run_head = INDEX_WRAP(++run_head);
+
 		if (vclock_counter>=(VCLK_MAX)) {
 			vclock_counter = 0; // wrap
 			//tempOutput.channel[TRANSMIT_CLOCK] = 32000; //Left channel for debug, doesn't really do anything
@@ -497,7 +601,21 @@ interrupt void serialPortRcvISR()
 			tempOutput.channel[TRANSMIT_CLOCK] = 0; //Left channel for debug, doesn't really do anything
 		}
 
+		tempOutput.channel[TRANSMIT_SINC] = ML[INDEX_WRAP(run_head)];
+		ML[INDEX_WRAP(run_head)] = 0;	// zero the buffer after we use it
+
+		//just for debug output zero-delayed clock sinc along with master's response sinc
+		tempOutput.channel[TRANSMIT_CLOCK] = MR[INDEX_WRAP(run_head)];
+		MR[INDEX_WRAP(run_head)] = 0;	// zero the buffer after we use it
+
+		if(clk_flag)
+			runResponseClkSinc();
+
 	#elif(NODE_TYPE==SLAVE_NODE)
+
+		run_head = CLOCK_WRAP(++run_head);
+		run_head_sl = INDEX_WRAP(++run_head_sl);
+
 		if (vclock_counter>=(VCLK_MAX)){ //runs at 1/2x rate of master for clock pulses, might want to switch variables?
 			vclock_counter = 0;
 			//tempOutput.channel[TRANSMIT_CLOCK] = 32000;
@@ -505,14 +623,23 @@ interrupt void serialPortRcvISR()
 			sinc_launch++;
 		}
 		else{
-			tempOutput.channel[TRANSMIT_CLOCK] = 0;
+			//tempOutput.channel[TRANSMIT_CLOCK] = 0;
 		}
+
+		tempOutput.channel[TRANSMIT_CLOCK] = SR[CLOCK_WRAP(vclock_counter)];
+		//SR[CLOCK_WRAP(vclock_counter)] = 0;	// zero the clock buffer after
+
+		// incomming sinc from slave
+		//tempOutput.channel[TRANSMIT_SINC] = SL[INDEX_WRAP(run_head_sl)];
 
 		// update sinc start virtual clock
 
 		if (sinc_launch>=4) {//x*VCLK_MAX, x dictates the timeout, 3 should be enough
 			//sinc_launch = 0; //
 			state=STATE_TRANSMIT;//timeout reached, no sinc reflected from master, send sinc again
+			//state=STATE_SEARCHING;
+			DSK6713_LED_off(STATE_CALCULATION);
+			DSK6713_LED_on(STATE_TRANSMIT);
 			ToggleDebugGPIO(STATE_TRANSMIT);
 		}
 
@@ -536,8 +663,8 @@ interrupt void serialPortRcvISR()
 		else if(state==STATE_CALCULATION){
 			runCalculationStateCodeISR();
 		}
-		else if(state==STATE_TRANSMIT){
-			runResponseStateCodeISR();
+		else if(state==STATE_TRANSMIT){// doesn't have transmit state, in fact it always transmits but mostly zeroes
+			//runResponseStateCodeISR();
 		}
 
 	//Run all interrupt routines for the slave node here
@@ -555,6 +682,8 @@ interrupt void serialPortRcvISR()
 		}
 		else if(state==STATE_TRANSMIT){
 			// transmit initial sinc to master (beg for some precision)
+			// transmit tick when virtual clock is at 0.5*VCLK_MAX
+			// minus N is to center the peak of the sinc at the tick
 			vir_clock_start = VCLK_MAX-N-(VCLK_MAX>>1);	// subject to change
 
 			runResponseStateCodeISR();//this function will change state when it's done
@@ -566,8 +695,10 @@ interrupt void serialPortRcvISR()
 
 	#endif
 
-	if(clk_flag)
-		runResponseClkSinc();
+	local_carrier_phase = ((char) vclock_counter) & 3;
+
+	//if(clk_flag)
+	//	runResponseClkSinc();
 
 	//Write the output sample to the audio codec
 	MCBSP_write(DSK6713_AIC23_DATAHANDLE, tempOutput.combo);
@@ -605,6 +736,125 @@ void SetupTransmitModulatedSincPulseBufferDelayed(){
 		//	y = 1;								//x = 0 case.
 		tModulatedSincPulse_delayed[i+N] = y*32767;
 	}
+}
+
+/**
+ * Calculates a transmission waveform to be placed into a buffer.
+ * @param tBuffer		The buffer to put the waveform into
+ * @param halfBufLen	The size of one half of the buffer (e.g. -N, to 0, to N)
+ * @param sincBandwidth The bandwidth of the sinc pulse (e.g. 0.0125 BW)
+ * @param carrierFreq	The frequency to modulate at 	(e.g. 0.25 CBW)
+ * @param delay			the fractional delay in samples to allow for sync (e.g. 0.5 is one half sample delay)
+ */
+void setupTransmitBuffer(short tBuffer[], short halfBufLen, double sincBandwidth, double carrierFreq, double delay){
+
+	//i is index per element, y is temp for output
+	int idx;
+	double x, y, t;
+	double cosine, sine, denom;
+
+	for (idx=-halfBufLen;idx<=halfBufLen;idx++){
+		x = ((double)idx - delay) * sincBandwidth;
+		t = ((double)idx - delay) * carrierFreq;
+		if (x == 0.00000) //floating point check if delay is too close to 1 or 0 to keep division by zero from occurring
+			y = 1.0;
+		else {
+			cosine = cos(2*PI*t);
+			sine = sin(PI*x);
+			denom = (PI*x);
+			y = (cosine * sine / denom);
+		}
+
+			//y = cos(2*PI*t)*(sin(PI*x)/(PI*x)); // modulated sinc pulse at carrier freq = fs/4
+			//y = 1.0;
+		tBuffer[idx + halfBufLen] = (short)(y*32767.0);
+	}
+}
+
+/**
+	Sets up the transmit buffer for the sinc pulse modulated at quarter sampling frequency
+	Delayed by half a sample.
+*/
+void SetupTransmitModulatedSincPulseBufferDelayedFine(float fineDelay){
+
+//	if(fineDelay == 0.0){
+//		for (i=-N;i<=N;i++){
+//			xf = ((float)i-fineDelay)*BW;
+//			tf = ((float)i-fineDelay)*0.25;
+//			if (i!=0)
+//				yf = cos(2*PI*tf)*(sin(PI*xf)/(PI*xf)); // modulated sinc pulse at carrier freq = fs/4
+//			else
+//				yf = 1;								//x = 0 case.
+//				ML[INDEX_WRAP(calc_head + i + N)] = yf*32767;
+//		}
+//	}else{
+//		for (i=-N;i<=N;i++){
+//			xf = ((float)i-fineDelay)*BW;
+//			tf = ((float)i-fineDelay)*0.25;
+//			//if (i!=0)
+//				yf = cos(2*PI*tf)*(sin(PI*xf)/(PI*xf)); // modulated sinc pulse at carrier freq = fs/4
+//			//else
+//			//	y = 1;								//x = 0 case.
+//				ML[INDEX_WRAP(calc_head + i + N)] = yf*32767;
+//		}
+//	}
+
+#if (NODE_TYPE==MASTER_NODE)
+	//copy the hardcoded sinc from SDRAM into the ML buffer in IRAM
+	//figure out which of the hardcoded suncs is the best approximation to the fine_delay_estimate
+	// if MAXDELAY = 100, then max resolution is 0.01, and we need to round ...
+
+	float_history[0][age] = fineDelay;
+
+	if(fineDelay < 0)
+		fineDelay *= -1.0;//make positive
+
+	if(((int)(fineDelay*1000)%10) >= 5.0)	// there must be a smarter way to roud
+		fineDelay += 0.01;
+
+	int index = ((int)(fineDelay*100))%100;	// might need to add an offset to the fine delay ...
+
+	index_history[0][age] = index;
+
+	age++;
+	if(age==HISTORY)
+		age=0;
+
+	if(index > 99 || index < 0)
+		index = 0;//this shouldn't happen, just for debug
+
+	for (i=-N;i<=N;i++){
+		ML[INDEX_WRAP(calc_head + i + N)] =  allMyDelayedWaveforms[index][i + N];
+	}
+#elif (NODE_TYPE==SLAVE_NODE)
+	//copy the hardcoded sinc from SDRAM into the ML buffer in IRAM
+	//figure out which of the hardcoded suncs is the best approximation to the fine_delay_estimate
+	// if MAXDELAY = 100, then max resolution is 0.01, and we need to round ...
+
+	float_history[0][age] = fineDelay;
+
+	if(fineDelay < 0)//should never be negative
+		fineDelay *= -1.0;//make positive
+
+	if(((int)(fineDelay*1000)%10) >= 5.0)	// there must be a smarter way to roud
+		fineDelay += 0.01;
+
+	int index = ((int)(fineDelay*100))%100;	// might need to add an offset to the fine delay ...
+
+	index_history[0][age] = index;
+
+	age++;
+	if(age==HISTORY)
+		age=0;
+
+	if(index > 99 || index < 0)
+		index = 0;//this shouldn't happen, just for debug
+
+	for (i=-N;i<=N;i++){
+		SR[CLOCK_WRAP(i + N)] =  allMyDelayedWaveforms[index][i + N];
+	}
+#endif
+
 }
 
 /**
@@ -721,8 +971,10 @@ void runSearchingStateCodeISR(){
 	}
 	corrSumIncoherent = corrSumCosine*corrSumCosine+corrSumSine*corrSumSine;
 
-	if (corrSumIncoherent>T1) {  // xxx should make sure this runs in real-time
+	if ((corrSumIncoherent>T1)&&(local_carrier_phase==0)) {  // xxx should make sure this runs in real-time
 		state = STATE_RECORDING; // enter "recording" state (takes effect in next interrupt)
+		DSK6713_LED_off(STATE_SEARCHING);
+		DSK6713_LED_on(STATE_RECORDING);
 		ToggleDebugGPIO(STATE_RECORDING);
 		recbuf_start_clock = vclock_counter - M; // virtual clock tick at at start of recording buffer
 												 // (might be negative but doesn't matter)
@@ -745,6 +997,8 @@ void runRecordingStateCodeISR(){
 	if (recbufindex>=(2*N+2*M)) {
 		CurTime = vclock_counter;
 		state = STATE_CALCULATION;  // buffer is full (stop recording)
+		DSK6713_LED_off(STATE_RECORDING);
+		DSK6713_LED_on(STATE_CALCULATION);
 		ToggleDebugGPIO(STATE_CALCULATION);
 		recbufindex = 0; // shouldn't be necessary
 	}
@@ -771,6 +1025,8 @@ void runResponseStateCodeISR(){
 		amSending = 0;			//quits the sending part above
 		response_buf_idx = 0;
 		state=STATE_SEARCHING;
+		DSK6713_LED_off(STATE_TRANSMIT);
+		DSK6713_LED_on(STATE_SEARCHING);
 		ToggleDebugGPIO(STATE_SEARCHING);
 	}
 }
@@ -827,21 +1083,51 @@ void runReceviedSincPulseTimingAnalysis(){
 	y = (double) corr_max_s;
 	x = (double) corr_max_c;
 	phase_correction_factor = atan2(y,x)*2*INVPI; // phase
+	if(phase_correction_factor != phase_correction_factor)// if NaN
+		phase_correction_factor=0;
+	if(phase_correction_factor == 0)
+		phase_correction_factor=0;
 	r = (recbuf_start_clock+corr_max_lag) & 3; // compute remainder
-	if (r==0)
+	float fine = 0;
+	if (r==0){
 		fine_delay_estimate[fde_index] = recbuf_start_clock+corr_max_lag+phase_correction_factor;
-	else if (r==1)
-		fine_delay_estimate[fde_index] = recbuf_start_clock+corr_max_lag+phase_correction_factor-1;
-	else if (r==2) {
-		if (phase_correction_factor>0)
-			fine_delay_estimate[fde_index] = recbuf_start_clock+corr_max_lag+phase_correction_factor-2;
-		else
-			fine_delay_estimate[fde_index] = recbuf_start_clock+corr_max_lag+phase_correction_factor+2;
+		fine = phase_correction_factor;
 	}
-	else if (r==3)
+	else if (r==1){
+		fine_delay_estimate[fde_index] = recbuf_start_clock+corr_max_lag+phase_correction_factor-1;
+		fine = phase_correction_factor-1;
+	}
+	else if (r==2) {
+		if (phase_correction_factor>0){
+			fine_delay_estimate[fde_index] = recbuf_start_clock+corr_max_lag+phase_correction_factor-2;
+			fine = phase_correction_factor-2;
+		}
+		else{
+			fine_delay_estimate[fde_index] = recbuf_start_clock+corr_max_lag+phase_correction_factor+2;
+			fine = phase_correction_factor+2;
+		}
+	}
+	else if (r==3){
 		fine_delay_estimate[fde_index] = recbuf_start_clock+corr_max_lag+phase_correction_factor+1;
+		fine = phase_correction_factor+1;
+	}
 	else
 		printf("ERROR");
+
+	//fine_delay_estimate[fde_index] -= recbuf_start_clock+corr_max_lag;	// we just want the fractional part
+
+//	if(fine > 0)
+//	{
+//
+//	}else if(fine < 0)
+//	{
+//		int whole = (int)fine;
+//		float frac = 1+(fine-whole);
+//		fine_delay_estimate[fde_index] += whole+frac;//
+//	}else
+//	{
+//
+//	}
 
 	// --- Calculations Finished ---
 }

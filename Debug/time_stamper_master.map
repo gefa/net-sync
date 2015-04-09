@@ -1,10 +1,10 @@
 ******************************************************************************
                TMS320C6x Linker PC v7.4.8                      
 ******************************************************************************
->> Linked Wed Mar 04 05:08:37 2015
+>> Linked Tue Mar 31 15:22:26 2015
 
 OUTPUT FILE NAME:   <time_stamper_master.out>
-ENTRY POINT SYMBOL: "_c_int00"  address: 0000bac0
+ENTRY POINT SYMBOL: "_c_int00"  address: 0000d000
 
 
 MEMORY CONFIGURATION
@@ -12,7 +12,7 @@ MEMORY CONFIGURATION
          name            origin    length      used     unused   attr    fill
 ----------------------  --------  ---------  --------  --------  ----  --------
   VECS                  00000000   00000200  00000200  00000000  RWIX
-  IRAM                  00000200   0002fe00  00012c64  0001d19c  RWIX
+  IRAM                  00000200   0002fe00  00015298  0001ab68  RWIX
   L2RAM                 00030000   00010000  00000000  00010000  RWIX
   EMIFCE0               80000000   10000000  00000000  10000000  RWIX
   EMIFCE1               90000000   10000000  00000000  10000000  RWIX
@@ -30,186 +30,203 @@ vectors    0    00000000    00000200
 
 .pinit     0    00000200    00000000     UNINITIALIZED
 
-.text      0    00000200    0000bd60     
-                  00000200    00001b00     time_stamper_master.obj (.text)
-                  00001d00    00000720     rts6700.lib : divd.obj (.text:__divd)
-                  00002420    000006c0                 : _printfi.obj (.text:__getarg_diouxp)
-                  00002ae0    00000640                 : _printfi.obj (.text:__setfield)
-                  00003120    00000560                 : _printfi.obj (.text:__printfi)
-                  00003680    000004c0                 : fputs.obj (.text:_fputs)
-                  00003b40    00000480     dsk6713bsl.lib : dsk6713.obj (.text)
-                  00003fc0    00000420     rts6700.lib : _printfi.obj (.text:_fcvt)
-                  000043e0    00000400                 : _printfi.obj (.text:__pproc_fge)
-                  000047e0    00000400                 : _printfi.obj (.text:_ecvt)
-                  00004be0    00000380                 : imath64.obj (.text:__divull)
-                  00004f60    00000380                 : memory.obj (.text:_free)
-                  000052e0    00000360                 : _printfi.obj (.text:__pconv_e)
-                  00005640    00000360                 : _printfi.obj (.text:__pproc_fwp)
-                  000059a0    00000340                 : cos.obj (.text:_cos)
-                  00005ce0    00000300                 : _printfi.obj (.text:__pproc_diouxp)
-                  00005fe0    00000300     dsk6713bsl.lib : dsk6713_aic23_opencodec.obj (.text)
-                  000062e0    000002e0     rts6700.lib : sin.obj (.text:_sin)
-                  000065c0    000002c0                 : _printfi.obj (.text:__pproc_str)
-                  00006880    000002c0                 : setvbuf.obj (.text:_setvbuf)
-                  00006b40    000002a0                 : _printfi.obj (.text:__pconv_g)
-                  00006de0    000002a0                 : fputc.obj (.text:_fputc)
-                  00007080    000002a0     time_stamper_master.obj (.text:retain)
-                  00007320    00000260     rts6700.lib : imath40.obj (.text:__divul)
-                  00007580    00000240                 : _printfi.obj (.text:__mcpy)
-                  000077c0    00000240                 : atan.obj (.text:_atan)
-                  00007a00    00000240                 : memory.obj (.text:_malloc)
-                  00007c40    00000240                 : memcpy62.obj (.text:_memcpy)
-                  00007e80    00000220                 : trgdrv.obj (.text:_HOSTrename)
-                  000080a0    000001e0                 : lowlev.obj (.text:_getdevice)
-                  00008280    000001e0     dsk6713bsl.lib : dsk6713_led.obj (.text)
-                  00008460    000001c0     csl6713.lib : csl_irq.obj (.text:_IRQ_map)
-                  00008620    000001c0     rts6700.lib : fseek.obj (.text:_fseek)
-                  000087e0    000001a0     csl6713.lib : csl_mcbsp.obj (.text:_MCBSP_reset)
-                  00008980    000001a0     rts6700.lib : _printfi.obj (.text:__ltostr)
-                  00008b20    000001a0                 : _printfi.obj (.text:__pproc_fflags)
-                  00008cc0    000001a0                 : atan2.obj (.text:_atan2)
-                  00008e60    00000160                 : trgdrv.obj (.text:_HOSTlseek)
-                  00008fc0    00000160                 : fclose.obj (.text:__closefile)
-                  00009120    00000140                 : trgdrv.obj (.text:_HOSTread)
-                  00009260    00000140                 : frcmpyd_div.obj (.text:__frcmpyd_div)
-                  000093a0    00000140                 : atoi.obj (.text:_atoi)
-                  000094e0    00000140                 : ltoa.obj (.text:_ltoa)
-                  00009620    00000140     dsk6713bsl.lib : dsk6713_aic23_registers.obj (.text)
-                  00009760    00000120     rts6700.lib : trgdrv.obj (.text:_HOSTopen)
-                  00009880    00000120                 : trgdrv.obj (.text:_HOSTwrite)
-                  000099a0    00000120                 : _io_perm.obj (.text:__wrt_ok)
-                  00009ac0    00000120                 : lowlev.obj (.text:_close)
-                  00009be0    00000120                 : frexp.obj (.text:_frexp)
-                  00009d00    00000120                 : memset.obj (.text:_memset)
-                  00009e20    00000100                 : trgdrv.obj (.text:_HOSTclose)
-                  00009f20    00000100                 : trgdrv.obj (.text:_HOSTunlink)
-                  0000a020    00000100     csl6713.lib : csl_mcbsp.obj (.text:_MCBSP_open)
-                  0000a120    00000100                 : csl_mcbsp.obj (.text:_MCBSP_start)
-                  0000a220    00000100     rts6700.lib : autoinit.obj (.text:__auto_init)
-                  0000a320    00000100                 : _printfi.obj (.text:__div)
-                  0000a420    00000100                 : imath40.obj (.text:__divli)
-                  0000a520    00000100                 : _printfi.obj (.text:__pconv_f)
-                  0000a620    00000100                 : lowlev.obj (.text:_lseek)
-                  0000a720    00000100                 : printf.obj (.text:_printf)
-                  0000a820    00000100                 : lowlev.obj (.text:_write)
-                  0000a920    000000e0                 : fopen.obj (.text:__cleanup)
-                  0000aa00    000000e0                 : fflush.obj (.text:__doflush)
-                  0000aae0    000000e0                 : _printfi.obj (.text:__ecpy)
-                  0000abc0    000000e0                 : _printfi.obj (.text:__fcpy)
-                  0000aca0    000000e0                 : round.obj (.text:__nround)
-                  0000ad80    000000e0                 : strasg.obj (.text:__strasg)
-                  0000ae60    000000e0                 : exit.obj (.text:_exit)
-                  0000af40    000000e0                 : memory.obj (.text:_minsert)
-                  0000b020    000000e0                 : modf.obj (.text:_modf)
-                  0000b100    000000e0                 : memory.obj (.text:_mremove)
-                  0000b1e0    000000c0                 : divu.obj (.text:__divu)
-                  0000b2a0    000000c0                 : cpy_tbl.obj (.text:_copy_in)
-                  0000b360    000000c0                 : lowlev.obj (.text:_finddevice)
-                  0000b420    000000c0     dsk6713bsl.lib : dsk6713_aic23_setfreq.obj (.text)
-                  0000b4e0    000000a0     rts6700.lib : fixdli.obj (.text:__fixdli)
-                  0000b580    000000a0                 : mpyll.obj (.text:__mpyll)
-                  0000b620    000000a0                 : imath40.obj (.text:__remli)
-                  0000b6c0    000000a0                 : trgmsg.obj (.text:_readmsg)
-                  0000b760    000000a0     csl6713.lib : csl_irq.obj (.text:_setMux)
-                  0000b800    000000a0     rts6700.lib : lowlev.obj (.text:_unlink)
-                  0000b8a0    000000a0                 : trgmsg.obj (.text:_writemsg)
-                  0000b940    00000080                 : cpp_init.obj (.text:___TI_cpp_init)
-                  0000b9c0    00000080                 : fltlid.obj (.text:__fltlid)
-                  0000ba40    00000080                 : llshift.obj (.text:__llshl)
-                  0000bac0    00000080                 : boot.obj (.text:_c_int00)
-                  0000bb40    00000080                 : memccpy.obj (.text:_memccpy)
-                  0000bbc0    00000060                 : isinf.obj (.text:___isinf)
-                  0000bc20    00000060                 : llshift.obj (.text:__llshru)
-                  0000bc80    00000060                 : imath64.obj (.text:__subcull)
-                  0000bce0    00000040     csl6713.lib : csl_irq.obj (.text:_IRQ_enable)
-                  0000bd20    00000040     rts6700.lib : _printfi.obj (.text:___isnan)
-                  0000bd60    00000040                 : args_main.obj (.text:__args_main)
-                  0000bda0    00000040                 : trunc.obj (.text:__trunc)
-                  0000bde0    00000020     csl6713.lib : csl_irq.obj (.text:_IRQ_globalDisable)
-                  0000be00    00000020                 : csl_irq.obj (.text:_IRQ_globalEnable)
-                  0000be20    00000020                 : csl_irq.obj (.text:_IRQ_nmiEnable)
-                  0000be40    00000020                 : csl_mcbsp.obj (.text:_MCBSP_read)
-                  0000be60    00000020                 : csl_mcbsp.obj (.text:_MCBSP_write)
-                  0000be80    00000020     rts6700.lib : negll.obj (.text:__negll)
-                  0000bea0    00000020                 : _lock.obj (.text:__nop)
-                  0000bec0    00000020                 : printf.obj (.text:__outc)
-                  0000bee0    00000020                 : printf.obj (.text:__outs)
-                  0000bf00    00000020                 : exit.obj (.text:_abort)
-                  0000bf20    00000020                 : remove.obj (.text:_remove)
-                  0000bf40    00000020     csl6713.lib : csl_irq.obj (.text)
+.text      0    00000200    0000d380     
+                  00000200    00001e80     MathCalculations.obj (.text)
+                  00002080    00000920     time_stamper_master.obj (.text)
+                  000029a0    00000720     rts6700.lib : divd.obj (.text:__divd)
+                  000030c0    000006c0                 : _printfi.obj (.text:__getarg_diouxp)
+                  00003780    00000640                 : _printfi.obj (.text:__setfield)
+                  00003dc0    00000580     DebugTools.obj (.text)
+                  00004340    00000560     rts6700.lib : _printfi.obj (.text:__printfi)
+                  000048a0    000004c0                 : fputs.obj (.text:_fputs)
+                  00004d60    00000480     dsk6713bsl.lib : dsk6713.obj (.text)
+                  000051e0    00000420     rts6700.lib : _printfi.obj (.text:_fcvt)
+                  00005600    00000400                 : _printfi.obj (.text:__pproc_fge)
+                  00005a00    00000400                 : _printfi.obj (.text:_ecvt)
+                  00005e00    00000380                 : imath64.obj (.text:__divull)
+                  00006180    00000380                 : memory.obj (.text:_free)
+                  00006500    00000360                 : _printfi.obj (.text:__pconv_e)
+                  00006860    00000360                 : _printfi.obj (.text:__pproc_fwp)
+                  00006bc0    00000340                 : cos.obj (.text:_cos)
+                  00006f00    00000300                 : _printfi.obj (.text:__pproc_diouxp)
+                  00007200    00000300     dsk6713bsl.lib : dsk6713_aic23_opencodec.obj (.text)
+                  00007500    000002e0     rts6700.lib : sin.obj (.text:_sin)
+                  000077e0    000002c0                 : _printfi.obj (.text:__pproc_str)
+                  00007aa0    000002c0                 : setvbuf.obj (.text:_setvbuf)
+                  00007d60    000002a0                 : _printfi.obj (.text:__pconv_g)
+                  00008000    000002a0                 : fputc.obj (.text:_fputc)
+                  000082a0    00000280     time_stamper_master.obj (.text:retain)
+                  00008520    00000260     rts6700.lib : imath40.obj (.text:__divul)
+                  00008780    00000240                 : _printfi.obj (.text:__mcpy)
+                  000089c0    00000240                 : atan.obj (.text:_atan)
+                  00008c00    00000240                 : memory.obj (.text:_malloc)
+                  00008e40    00000240                 : memcpy62.obj (.text:_memcpy)
+                  00009080    00000220                 : trgdrv.obj (.text:_HOSTrename)
+                  000092a0    000001e0                 : lowlev.obj (.text:_getdevice)
+                  00009480    000001e0     dsk6713bsl.lib : dsk6713_led.obj (.text)
+                  00009660    000001c0     csl6713.lib : csl_irq.obj (.text:_IRQ_map)
+                  00009820    000001c0     rts6700.lib : fseek.obj (.text:_fseek)
+                  000099e0    000001a0     csl6713.lib : csl_mcbsp.obj (.text:_MCBSP_reset)
+                  00009b80    000001a0     rts6700.lib : _printfi.obj (.text:__ltostr)
+                  00009d20    000001a0                 : _printfi.obj (.text:__pproc_fflags)
+                  00009ec0    000001a0                 : atan2.obj (.text:_atan2)
+                  0000a060    00000160                 : trgdrv.obj (.text:_HOSTlseek)
+                  0000a1c0    00000160                 : fclose.obj (.text:__closefile)
+                  0000a320    00000140                 : trgdrv.obj (.text:_HOSTread)
+                  0000a460    00000140                 : frcmpyd_div.obj (.text:__frcmpyd_div)
+                  0000a5a0    00000140                 : strasg.obj (.text:__strasgi)
+                  0000a6e0    00000140                 : atoi.obj (.text:_atoi)
+                  0000a820    00000140                 : ltoa.obj (.text:_ltoa)
+                  0000a960    00000140     dsk6713bsl.lib : dsk6713_aic23_registers.obj (.text)
+                  0000aaa0    00000120     rts6700.lib : trgdrv.obj (.text:_HOSTopen)
+                  0000abc0    00000120                 : trgdrv.obj (.text:_HOSTwrite)
+                  0000ace0    00000120                 : _io_perm.obj (.text:__wrt_ok)
+                  0000ae00    00000120                 : lowlev.obj (.text:_close)
+                  0000af20    00000120                 : frexp.obj (.text:_frexp)
+                  0000b040    00000120                 : memset.obj (.text:_memset)
+                  0000b160    00000100                 : trgdrv.obj (.text:_HOSTclose)
+                  0000b260    00000100                 : trgdrv.obj (.text:_HOSTunlink)
+                  0000b360    00000100     csl6713.lib : csl_mcbsp.obj (.text:_MCBSP_open)
+                  0000b460    00000100                 : csl_mcbsp.obj (.text:_MCBSP_start)
+                  0000b560    00000100     rts6700.lib : autoinit.obj (.text:__auto_init)
+                  0000b660    00000100                 : _printfi.obj (.text:__div)
+                  0000b760    00000100                 : imath40.obj (.text:__divli)
+                  0000b860    00000100                 : _printfi.obj (.text:__pconv_f)
+                  0000b960    00000100                 : lowlev.obj (.text:_lseek)
+                  0000ba60    00000100                 : printf.obj (.text:_printf)
+                  0000bb60    00000100                 : lowlev.obj (.text:_write)
+                  0000bc60    000000e0                 : fopen.obj (.text:__cleanup)
+                  0000bd40    000000e0                 : fflush.obj (.text:__doflush)
+                  0000be20    000000e0                 : _printfi.obj (.text:__ecpy)
+                  0000bf00    000000e0                 : _printfi.obj (.text:__fcpy)
+                  0000bfe0    000000e0                 : round.obj (.text:__nround)
+                  0000c0c0    000000e0                 : strasg.obj (.text:__strasg)
+                  0000c1a0    000000e0                 : exit.obj (.text:_exit)
+                  0000c280    000000e0                 : memory.obj (.text:_minsert)
+                  0000c360    000000e0                 : modf.obj (.text:_modf)
+                  0000c440    000000e0                 : memory.obj (.text:_mremove)
+                  0000c520    000000c0     csl6713.lib : csl_gpio.obj (.text:_GPIO_open)
+                  0000c5e0    000000c0                 : csl_gpio.obj (.text:_GPIO_reset)
+                  0000c6a0    000000c0     rts6700.lib : divu.obj (.text:__divu)
+                  0000c760    000000c0                 : cpy_tbl.obj (.text:_copy_in)
+                  0000c820    000000c0                 : lowlev.obj (.text:_finddevice)
+                  0000c8e0    000000c0     dsk6713bsl.lib : dsk6713_aic23_setfreq.obj (.text)
+                  0000c9a0    000000a0     rts6700.lib : fixdli.obj (.text:__fixdli)
+                  0000ca40    000000a0                 : mpyll.obj (.text:__mpyll)
+                  0000cae0    000000a0                 : imath40.obj (.text:__remli)
+                  0000cb80    000000a0                 : trgmsg.obj (.text:_readmsg)
+                  0000cc20    000000a0     csl6713.lib : csl_irq.obj (.text:_setMux)
+                  0000ccc0    000000a0     rts6700.lib : lowlev.obj (.text:_unlink)
+                  0000cd60    000000a0                 : trgmsg.obj (.text:_writemsg)
+                  0000ce00    00000080     csl6713.lib : csl_gpio.obj (.text:_GPIO_config)
+                  0000ce80    00000080     rts6700.lib : cpp_init.obj (.text:___TI_cpp_init)
+                  0000cf00    00000080                 : fltlid.obj (.text:__fltlid)
+                  0000cf80    00000080                 : llshift.obj (.text:__llshl)
+                  0000d000    00000080                 : boot.obj (.text:_c_int00)
+                  0000d080    00000080                 : memccpy.obj (.text:_memccpy)
+                  0000d100    00000060     csl6713.lib : csl_gpio.obj (.text:_GPIO_pinDirection)
+                  0000d160    00000060     rts6700.lib : isinf.obj (.text:___isinf)
+                  0000d1c0    00000060                 : llshift.obj (.text:__llshru)
+                  0000d220    00000060                 : imath64.obj (.text:__subcull)
+                  0000d280    00000040     csl6713.lib : csl_gpio.obj (.text:_GPIO_pinEnable)
+                  0000d2c0    00000040                 : csl_gpio.obj (.text:_GPIO_pinWrite)
+                  0000d300    00000040                 : csl_irq.obj (.text:_IRQ_enable)
+                  0000d340    00000040     rts6700.lib : _printfi.obj (.text:___isnan)
+                  0000d380    00000040                 : args_main.obj (.text:__args_main)
+                  0000d3c0    00000040                 : trunc.obj (.text:__trunc)
+                  0000d400    00000020     csl6713.lib : csl_irq.obj (.text:_IRQ_globalDisable)
+                  0000d420    00000020                 : csl_irq.obj (.text:_IRQ_globalEnable)
+                  0000d440    00000020                 : csl_irq.obj (.text:_IRQ_nmiEnable)
+                  0000d460    00000020                 : csl_mcbsp.obj (.text:_MCBSP_read)
+                  0000d480    00000020                 : csl_mcbsp.obj (.text:_MCBSP_write)
+                  0000d4a0    00000020     rts6700.lib : negll.obj (.text:__negll)
+                  0000d4c0    00000020                 : _lock.obj (.text:__nop)
+                  0000d4e0    00000020                 : printf.obj (.text:__outc)
+                  0000d500    00000020                 : printf.obj (.text:__outs)
+                  0000d520    00000020                 : exit.obj (.text:_abort)
+                  0000d540    00000020                 : remove.obj (.text:_remove)
+                  0000d560    00000020     csl6713.lib : csl_irq.obj (.text)
 
 .bss       0    00000200    00000000     UNINITIALIZED
 
 .data      0    00000200    00000000     UNINITIALIZED
 
-.far       0    0000bf60    00005ec0     UNINITIALIZED
-                  0000bf60    000057f4     time_stamper_master.obj (.far)
-                  00011754    00000324     rts6700.lib : defs.obj (.far)
-                  00011a78    0000011c                 : lowlev.obj (.far)
-                  00011b94    000000f4     csl6713.lib : csl_irq.obj (.far)
-                  00011c88    00000060     rts6700.lib : atan.obj (.far)
-                  00011ce8    00000040                 : cos.obj (.far)
-                  00011d28    00000040                 : sin.obj (.far)
-                  00011d68    00000038     csl6713.lib : csl_mcbsp.obj (.far)
-                  00011da0    00000028     dsk6713bsl.lib : dsk6713_aic23_registers.obj (.far)
-                  00011dc8    00000020                    : dsk6713_aic23_setfreq.obj (.far)
-                  00011de8    0000000c     rts6700.lib : exit.obj (.far)
-                  00011df4    00000008     dsk6713bsl.lib : dsk6713_aic23_opencodec.obj (.far)
-                  00011dfc    00000008     rts6700.lib : _lock.obj (.far)
-                  00011e04    00000008                 : memory.obj (.far)
-                  00011e0c    00000008                 : trgdrv.obj (.far)
-                  00011e14    00000004                 : errno.obj (.far)
-                  00011e18    00000004                 : fopen.obj (.far)
-                  00011e1c    00000002     dsk6713bsl.lib : dsk6713.obj (.far)
-                  00011e1e    00000002                    : dsk6713_led.obj (.far)
+.far       0    0000d580    00006eb0     UNINITIALIZED
+                  0000d580    00004e68     MathCalculations.obj (.far)
+                  000123e8    00001954     time_stamper_master.obj (.far)
+                  00013d3c    00000324     rts6700.lib : defs.obj (.far)
+                  00014060    0000011c                 : lowlev.obj (.far)
+                  0001417c    000000f4     csl6713.lib : csl_irq.obj (.far)
+                  00014270    00000060     rts6700.lib : atan.obj (.far)
+                  000142d0    00000040                 : cos.obj (.far)
+                  00014310    00000040                 : sin.obj (.far)
+                  00014350    00000038     csl6713.lib : csl_mcbsp.obj (.far)
+                  00014388    00000028     dsk6713bsl.lib : dsk6713_aic23_registers.obj (.far)
+                  000143b0    00000024     csl6713.lib : csl_gpio.obj (.far)
+                  000143d4    00000020     dsk6713bsl.lib : dsk6713_aic23_setfreq.obj (.far)
+                  000143f4    0000000c     rts6700.lib : exit.obj (.far)
+                  00014400    00000008     dsk6713bsl.lib : dsk6713_aic23_opencodec.obj (.far)
+                  00014408    00000008     rts6700.lib : _lock.obj (.far)
+                  00014410    00000008                 : memory.obj (.far)
+                  00014418    00000008                 : trgdrv.obj (.far)
+                  00014420    00000004     DebugTools.obj (.far)
+                  00014424    00000004     rts6700.lib : errno.obj (.far)
+                  00014428    00000004                 : fopen.obj (.far)
+                  0001442c    00000002     dsk6713bsl.lib : dsk6713.obj (.far)
+                  0001442e    00000002                    : dsk6713_led.obj (.far)
 
-.cinit     0    00011e20    00000594     
-                  00011e20    00000150     time_stamper_master.obj (.cinit)
-                  00011f70    0000012c     csl6713.lib : csl_irq.obj (.cinit)
-                  0001209c    00000004     --HOLE-- [fill = 0]
-                  000120a0    00000070     rts6700.lib : atan.obj (.cinit)
-                  00012110    0000005c                 : defs.obj (.cinit)
-                  0001216c    00000004     --HOLE-- [fill = 0]
-                  00012170    0000005c                 : lowlev.obj (.cinit)
-                  000121cc    00000004     --HOLE-- [fill = 0]
-                  000121d0    00000054     csl6713.lib : csl_mcbsp.obj (.cinit)
-                  00012224    00000004     --HOLE-- [fill = 0]
-                  00012228    00000048     rts6700.lib : cos.obj (.cinit)
-                  00012270    00000048                 : sin.obj (.cinit)
-                  000122b8    00000030     dsk6713bsl.lib : dsk6713_aic23_registers.obj (.cinit)
-                  000122e8    0000002c     rts6700.lib : exit.obj (.cinit)
-                  00012314    00000004     --HOLE-- [fill = 0]
-                  00012318    0000002c                 : memory.obj (.cinit)
-                  00012344    00000004     --HOLE-- [fill = 0]
-                  00012348    00000028     dsk6713bsl.lib : dsk6713_aic23_setfreq.obj (.cinit)
-                  00012370    0000001c     rts6700.lib : _lock.obj (.cinit)
-                  0001238c    00000004     --HOLE-- [fill = 0]
-                  00012390    0000000c                 : errno.obj (.cinit)
-                  0001239c    00000004     --HOLE-- [fill = 0]
-                  000123a0    0000000c                 : fopen.obj (.cinit)
-                  000123ac    00000004     --HOLE-- [fill = 0]
-                  000123b0    00000004     (.pad.cinit) [fill = 0]
+.cinit     0    00014430    0000059c     
+                  00014430    0000012c     csl6713.lib : csl_irq.obj (.cinit)
+                  0001455c    00000004     --HOLE-- [fill = 0]
+                  00014560    000000b0     time_stamper_master.obj (.cinit)
+                  00014610    00000070     rts6700.lib : atan.obj (.cinit)
+                  00014680    0000005c     MathCalculations.obj (.cinit)
+                  000146dc    00000004     --HOLE-- [fill = 0]
+                  000146e0    0000005c     rts6700.lib : defs.obj (.cinit)
+                  0001473c    00000004     --HOLE-- [fill = 0]
+                  00014740    0000005c                 : lowlev.obj (.cinit)
+                  0001479c    00000004     --HOLE-- [fill = 0]
+                  000147a0    00000054     csl6713.lib : csl_mcbsp.obj (.cinit)
+                  000147f4    00000004     --HOLE-- [fill = 0]
+                  000147f8    00000048     rts6700.lib : cos.obj (.cinit)
+                  00014840    00000048                 : sin.obj (.cinit)
+                  00014888    00000044     csl6713.lib : csl_gpio.obj (.cinit)
+                  000148cc    00000004     --HOLE-- [fill = 0]
+                  000148d0    00000030     dsk6713bsl.lib : dsk6713_aic23_registers.obj (.cinit)
+                  00014900    0000002c     rts6700.lib : exit.obj (.cinit)
+                  0001492c    00000004     --HOLE-- [fill = 0]
+                  00014930    0000002c                 : memory.obj (.cinit)
+                  0001495c    00000004     --HOLE-- [fill = 0]
+                  00014960    00000028     dsk6713bsl.lib : dsk6713_aic23_setfreq.obj (.cinit)
+                  00014988    0000001c     rts6700.lib : _lock.obj (.cinit)
+                  000149a4    00000004     --HOLE-- [fill = 0]
+                  000149a8    0000000c                 : errno.obj (.cinit)
+                  000149b4    00000004     --HOLE-- [fill = 0]
+                  000149b8    0000000c                 : fopen.obj (.cinit)
+                  000149c4    00000004     --HOLE-- [fill = 0]
+                  000149c8    00000004     (.pad.cinit) [fill = 0]
 
-.stack     0    000123b8    00000400     UNINITIALIZED
-                  000123b8    00000008     rts6700.lib : boot.obj (.stack)
-                  000123c0    000003f8     --HOLE--
+.stack     0    000149d0    00000400     UNINITIALIZED
+                  000149d0    00000008     rts6700.lib : boot.obj (.stack)
+                  000149d8    000003f8     --HOLE--
 
-.sysmem    0    000127b8    00000400     UNINITIALIZED
-                  000127b8    00000008     rts6700.lib : memory.obj (.sysmem)
-                  000127c0    000003f8     --HOLE--
+.sysmem    0    00014dd0    00000400     UNINITIALIZED
+                  00014dd0    00000008     rts6700.lib : memory.obj (.sysmem)
+                  00014dd8    000003f8     --HOLE--
 
-.const     0    00012bb8    00000190     
-                  00012bb8    00000101     rts6700.lib : ctype.obj (.const:.string:__ctypes_)
-                  00012cb9    00000002                 : fputs.obj (.const:.string)
-                  00012cbb    00000001     --HOLE-- [fill = 0]
-                  00012cbc    00000040     dsk6713bsl.lib : dsk6713_aic23_opencodec.obj (.const)
-                  00012cfc    00000023     rts6700.lib : _printfi.obj (.const:.string)
-                  00012d1f    00000001     --HOLE-- [fill = 0]
-                  00012d20    00000020     dsk6713bsl.lib : dsk6713.obj (.const)
-                  00012d40    00000008     time_stamper_master.obj (.const:.string)
+.const     0    000151d0    000001ac     
+                  000151d0    00000101     rts6700.lib : ctype.obj (.const:.string:__ctypes_)
+                  000152d1    00000002                 : fputs.obj (.const:.string)
+                  000152d3    00000001     --HOLE-- [fill = 0]
+                  000152d4    00000040     dsk6713bsl.lib : dsk6713_aic23_opencodec.obj (.const)
+                  00015314    00000023     rts6700.lib : _printfi.obj (.const:.string)
+                  00015337    00000001     --HOLE-- [fill = 0]
+                  00015338    00000020     dsk6713bsl.lib : dsk6713.obj (.const)
+                  00015358    0000001c     DebugTools.obj (.const)
+                  00015374    00000008     MathCalculations.obj (.const:.string)
 
-.cio       0    00012d48    00000120     UNINITIALIZED
-                  00012d48    00000120     rts6700.lib : trgmsg.obj (.cio)
+.cio       0    0001537c    00000120     UNINITIALIZED
+                  0001537c    00000120     rts6700.lib : trgmsg.obj (.cio)
 
 
 GLOBAL SYMBOLS: SORTED ALPHABETICALLY BY Name 
@@ -220,206 +237,235 @@ address    name
 00000200   .bss
 00000200   .data
 00000200   .text
-0000bf00   C$$EXIT
-0000b918   C$$IO$$
-00011712   _ClockPulse
-00010f04   _CurTime
-00011df4   _DSK6713_AIC23_codeccontrolhandle
-00011df8   _DSK6713_AIC23_codecdatahandle
-000096e0   _DSK6713_AIC23_config
-00005fe0   _DSK6713_AIC23_openCodec
-000096b8   _DSK6713_AIC23_rget
-00009620   _DSK6713_AIC23_rset
-0000b420   _DSK6713_AIC23_setFreq
-00008280   _DSK6713_LED_init
-000082c0   _DSK6713_LED_off
-00008330   _DSK6713_LED_on
-000083a0   _DSK6713_LED_toggle
-00003f54   _DSK6713_getVersion
-00003b8c   _DSK6713_init
-00003ea8   _DSK6713_rget
-00003ebc   _DSK6713_rset
-00011e1c   _DSK6713_version
-00003ed0   _DSK6713_wait
-00003f28   _DSK6713_waitusec
-00009e20   _HOSTclose
-00008e60   _HOSTlseek
-00009760   _HOSTopen
-00009120   _HOSTread
-00007e80   _HOSTrename
-00009f20   _HOSTunlink
-00009880   _HOSTwrite
-0000bce0   _IRQ_enable
-0000bde0   _IRQ_globalDisable
-0000be00   _IRQ_globalEnable
-00008460   _IRQ_map
-0000be20   _IRQ_nmiEnable
-0000a020   _MCBSP_open
-0000be40   _MCBSP_read
-000087e0   _MCBSP_reset
-0000a120   _MCBSP_start
-0000be60   _MCBSP_write
-000006ec   _SetupReceiveBasebandSincPulseBuffer
-00000878   _SetupReceiveTrigonometricMatchedFilters
-000004b4   _SetupTransmitModulatedSincPulseBuffer
-00012d48   __CIOBUF_
-00011c80   __IRQ_dispatchTable
-00011bbc   __IRQ_eventTable
-0000bf40   __IRQ_hookFetchPacket
-00011c40   __IRQ_intTable
-00011d98   __MCBSP_hDev0
-00011d9c   __MCBSP_hDev1
-000127b8   __STACK_END
+0000d520   C$$EXIT
+0000cdd8   C$$IO$$
+00014400   _DSK6713_AIC23_codeccontrolhandle
+00014404   _DSK6713_AIC23_codecdatahandle
+0000aa20   _DSK6713_AIC23_config
+00007200   _DSK6713_AIC23_openCodec
+0000a9f8   _DSK6713_AIC23_rget
+0000a960   _DSK6713_AIC23_rset
+0000c8e0   _DSK6713_AIC23_setFreq
+00009480   _DSK6713_LED_init
+000094c0   _DSK6713_LED_off
+00009530   _DSK6713_LED_on
+000095a0   _DSK6713_LED_toggle
+00005174   _DSK6713_getVersion
+00004dac   _DSK6713_init
+000050c8   _DSK6713_rget
+000050dc   _DSK6713_rset
+0001442c   _DSK6713_version
+000050f0   _DSK6713_wait
+00005148   _DSK6713_waitusec
+0000ce00   _GPIO_config
+0000c520   _GPIO_open
+0000d100   _GPIO_pinDirection
+0000d280   _GPIO_pinEnable
+0000d2c0   _GPIO_pinWrite
+0000c5e0   _GPIO_reset
+00001cb0   _GetPulseIndex
+0000b160   _HOSTclose
+0000a060   _HOSTlseek
+0000aaa0   _HOSTopen
+0000a320   _HOSTread
+00009080   _HOSTrename
+0000b260   _HOSTunlink
+0000abc0   _HOSTwrite
+0000d300   _IRQ_enable
+0000d400   _IRQ_globalDisable
+0000d420   _IRQ_globalEnable
+00009660   _IRQ_map
+0000d440   _IRQ_nmiEnable
+0000b360   _MCBSP_open
+0000d460   _MCBSP_read
+000099e0   _MCBSP_reset
+0000b460   _MCBSP_start
+0000d480   _MCBSP_write
+0000160c   _SetupReceiveBasebandSincPulseBuffer
+00001930   _SetupReceiveTrigonometricMatchedFilters
+00000fa8   _SetupTransmitModulatedSincPulseBuffer
+00004088   _ToggleDebugGPIO
+0001537c   __CIOBUF_
+000143bc   __GPIO_intTable
+00014268   __IRQ_dispatchTable
+000141a4   __IRQ_eventTable
+0000d560   __IRQ_hookFetchPacket
+00014228   __IRQ_intTable
+00014380   __MCBSP_hDev0
+00014384   __MCBSP_hDev1
+00014dd0   __STACK_END
 00000400   __STACK_SIZE
 00000400   __SYSMEM_SIZE
 00000001   __TI_args_main
-0000b940   ___TI_cpp_init
-00011df0   ___TI_enable_exit_profile_output
+0000ce80   ___TI_cpp_init
+000143fc   ___TI_enable_exit_profile_output
 ffffffff   ___TI_pprof_out_hndl
 ffffffff   ___TI_prof_data_size
 ffffffff   ___TI_prof_data_start
 ffffffff   ___binit__
 00000200   ___bss__
 ffffffff   ___c_args__
-00011e20   ___cinit__
+00014430   ___cinit__
 00000200   ___data__
 00000200   ___edata__
 00000200   ___end__
-0000bf60   ___etext__
-0000bbc0   ___isinf
+0000d580   ___etext__
+0000d160   ___isinf
 ffffffff   ___pinit__
 00000200   ___text__
-0000bd60   __args_main
-0000a220   __auto_init
-0000b1e0   __c6xabi_divu
-0000a920   __cleanup
-00011de8   __cleanup_ptr
-00008fc0   __closefile
-00012bb8   __ctypes_
-00001d00   __divd
-0000a420   __divli
-0000b1e0   __divu
-00007320   __divul
-00004be0   __divull
-0000aa00   __doflush
-00011dec   __dtors_ptr
-0000b4e0   __fixdli
-0000b9c0   __fltlid
-00009260   __frcmpyd_div
-00011a74   __ft_end
-00011754   __ftable
-0000ba40   __llshl
-0000bc20   __llshru
-00011dfc   __lock
-0000b580   __mpyll
-0000be80   __negll
-0000bea0   __nop
-0000aca0   __nround
-00003120   __printfi
-0000b620   __remli
-000123b8   __stack
-0000ad80   __strasg
-0000bc80   __subcull
-000127b8   __sys_memory
-00011934   __tmpnams
-0000bda0   __trunc
-00011e00   __unlock
-000099a0   __wrt_ok
-0000bf00   _abort
-00011710   _amSending
-000077c0   _atan
-00008cc0   _atan2
-000093a0   _atoi
-0000c810   _bbsinc
-0000bf60   _buf
-0000c7de   _bufindex
-0000bac0   _c_int00
-00011714   _calculation_done
-00010eec   _cde_index
-00009ac0   _close
-00010dc0   _coarse_delay_estimate
-0001172c   _config
-0000b2a0   _copy_in
-0000c23c   _corr_c
-0000c230   _corr_max
-0000c238   _corr_max_c
-0000c7dc   _corr_max_lag
-0000c234   _corr_max_s
-0000c41c   _corr_s
-000059a0   _cos
-00011e14   _errno
-0000ae60   _exit
-00010eee   _fde_index
-00010e24   _fine_delay_estimate
-00006de0   _fputc
-00003680   _fputs
-00004f60   _free
-00009be0   _frexp
-00008620   _fseek
-00011728   _hCodec
-00010f06   _halfSinc
-0000c7ec   _i
-0000c7ee   _j
-0000c7f0   _k
-00010ef0   _local_carrier_phase
-0000a620   _lseek
-000094e0   _ltoa
-00000200   _main
-00007a00   _malloc
-0000c050   _matchedFilterCosine
-0000c140   _matchedFilterSine
-00010f00   _max_samp
-0000bb40   _memccpy
-00007c40   _memcpy
-00009d00   _memset
-0000b020   _modf
-00010ef8   _phase_correction_factor
-0000a720   _printf
-0001171e   _pulse_counter
-00006de0   _putc
-00010ef1   _r
-0000b6c0   _readmsg
-0000d814   _recbuf
-00010dbe   _recbuf_start_clock
-00010db4   _recbufindex
-0000bf20   _remove
-0001170c   _response_buf_idx
-0001170e   _response_buf_idx_max
-0001170a   _response_done
-00001184   _runCalculationStateCodeISR
-00000a14   _runMasterResponseSincPulseTimingControl
-000019f8   _runReceivedPulseBufferDownmixing
-00001290   _runReceviedSincPulseTimingAnalysis
-000010e0   _runRecordingStateCodeISR
-0000118c   _runResponseStateCodeISR
-00000d64   _runSearchingStateCodeISR
-0000c5fc   _s
-00007080   _serialPortRcvISR
-00006880   _setvbuf
-000062e0   _sin
-00010db8   _state
-0000c7f8   _t
-00011724   _tempInput
-00011720   _tempOutput
-00010f08   _transmitSincPulseBuffer
-0000b800   _unlink
-00011718   _v_clk
-00010dbc   _vclock_counter
-00010f02   _vir_clock_start
-0000a820   _write
-0000b8a0   _writemsg
-0000c800   _x
-0000c808   _y
-0000e9f4   _yc
-0000fbd4   _ys
-0000c7e8   _z
-0000c7e0   _zc
-0000c7e4   _zs
+0000d380   __args_main
+0000b560   __auto_init
+0000c6a0   __c6xabi_divu
+0000a5a0   __c6xabi_strasgi
+0000bc60   __cleanup
+000143f4   __cleanup_ptr
+0000a1c0   __closefile
+000151d0   __ctypes_
+000029a0   __divd
+0000b760   __divli
+0000c6a0   __divu
+00008520   __divul
+00005e00   __divull
+0000bd40   __doflush
+000143f8   __dtors_ptr
+0000c9a0   __fixdli
+0000cf00   __fltlid
+0000a460   __frcmpyd_div
+0001405c   __ft_end
+00013d3c   __ftable
+000143d0   __hGpioDev0
+0000cf80   __llshl
+0000d1c0   __llshru
+00014408   __lock
+0000ca40   __mpyll
+0000d4a0   __negll
+0000d4c0   __nop
+0000bfe0   __nround
+00004340   __printfi
+0000cae0   __remli
+000149d0   __stack
+0000c0c0   __strasg
+0000a5a0   __strasgi
+0000d220   __subcull
+00014dd0   __sys_memory
+00013f1c   __tmpnams
+0000d3c0   __trunc
+0001440c   __unlock
+0000ace0   __wrt_ok
+0000d520   _abort
+000089c0   _atan
+00009ec0   _atan2
+0000a6e0   _atoi
+0000de30   _basebandSincRef
+0000d580   _buf
+0000ddfe   _bufindex
+0000d000   _c_int00
+00001e98   _calculateNewResponseBufferMaster
+00001c78   _calculateNewResponseTimeMaster
+00001e7c   _calculateNewResponseTimeMasterCoarse
+00001ed8   _calculateNewResponseTimeMasterFine
+00001c94   _calculateNewSynchronizationTimeSlave
+00001e60   _calculateNewSynchronizationTimeSlaveCoarse
+00001ef8   _calculateNewSynchronizationTimeSlaveFine
+00001eb8   _calculateNewVerifBufferSlave
+00013d00   _cde_index
+0000ae00   _close
+00013c00   _coarse_delay_estimate
+00013c80   _coarse_master_clock_estimate
+00013d14   _config
+0000c760   _copy_in
+0000de00   _corrSumCosine
+0000de08   _corrSumIncoherent
+0000de04   _corrSumSine
+0000d85c   _corr_c
+0000d850   _corr_max
+0000d858   _corr_max_c
+0000ddfc   _corr_max_lag
+0000d854   _corr_max_s
+0000da3c   _corr_s
+00006bc0   _cos
+00010014   _downMixedCosine
+000111f4   _downMixedSine
+00014424   _errno
+0000c1a0   _exit
+00013d02   _fde_index
+00013c40   _fine_delay_estimate
+00013cc0   _fine_master_clock_estimate
+00008000   _fputc
+000048a0   _fputs
+00006180   _free
+0000af20   _frexp
+00009820   _fseek
+00002028   _getMasterDelayLevelFromResponseTime
+0000205c   _getMasterIntegerResponseTime
+00003dc0   _gpioInit
+00003f80   _gpioToggle
+00013d10   _hCodec
+00014420   _hGpio
+0000de0c   _i
+0000de0e   _j
+0000de10   _k
+000123d6   _local_carrier_phase
+0000b960   _lseek
+0000a820   _ltoa
+00002080   _main
+00008c00   _malloc
+00001f18   _masterMirrorResponseTime
+0000d670   _matchedFilterCosine
+0000d760   _matchedFilterSine
+000123e0   _max_samp
+0000d080   _memccpy
+00008e40   _memcpy
+0000b040   _memset
+0000c360   _modf
+000123d8   _phase_correction_factor
+0000ba60   _printf
+00008000   _putc
+00000ccc   _quarterWavePulseDownmix
+000123d7   _r
+0000cb80   _readmsg
+0000ee34   _recbuf
+000123e4   _recbuf_start_clock
+000123d4   _recbufindex
+0000d540   _remove
+00002844   _runCalculationStateCodeISR
+000009e0   _runReceivedPulseBufferDownmixing
+00000200   _runReceviedSincPulseTimingAnalysis
+000027bc   _runRecordingStateCodeISR
+00002458   _runSearchingStateCodeISR
+0000284c   _runSincPulseTransmitISR
+00002908   _runVerifyPulseTransmitISR
+0000dc1c   _s
+00013d06   _searchingStateTimeoutCounter
+000082a0   _serialPortRcvISR
+00001798   _setupBasebandSincBuffer
+00001acc   _setupQuadratureCarrierWaveFilterBuffer
+00001414   _setupTransmitBuffer
+00007aa0   _setvbuf
+00007500   _sin
+00013d04   _state
+00001d24   _sumFloatArray
+00001dc0   _sumIntArray
+0000de18   _t
+000123ec   _tClockSincPulse
+00013bf6   _tCoarseVerifSincePulseFlag
+00012bf0   _tVerifSincPulse
+000133f4   _tVerifSincPulsePhased
+00013d0c   _tempInput
+00013d08   _tempOutput
+0000ccc0   _unlink
+000123e8   _vclock_counter
+00013bf8   _virClockTransmitCenterSinc
+00013bfc   _virClockTransmitCenterVerify
+0000bb60   _write
+0000cd60   _writemsg
+0000de20   _x
+0000de28   _y
 ffffffff   binit
-00011e20   cinit
+00014430   cinit
 00000200   edata
 00000200   end
-0000bf60   etext
+0000d580   etext
 ffffffff   pinit
 
 
@@ -437,193 +483,222 @@ address    name
 00000200   ___edata__
 00000200   ___end__
 00000200   ___text__
-00000200   _main
+00000200   _runReceviedSincPulseTimingAnalysis
 00000200   edata
 00000200   end
 00000400   __STACK_SIZE
 00000400   __SYSMEM_SIZE
-000004b4   _SetupTransmitModulatedSincPulseBuffer
-000006ec   _SetupReceiveBasebandSincPulseBuffer
-00000878   _SetupReceiveTrigonometricMatchedFilters
-00000a14   _runMasterResponseSincPulseTimingControl
-00000d64   _runSearchingStateCodeISR
-000010e0   _runRecordingStateCodeISR
-00001184   _runCalculationStateCodeISR
-0000118c   _runResponseStateCodeISR
-00001290   _runReceviedSincPulseTimingAnalysis
-000019f8   _runReceivedPulseBufferDownmixing
-00001d00   __divd
-00003120   __printfi
-00003680   _fputs
-00003b8c   _DSK6713_init
-00003ea8   _DSK6713_rget
-00003ebc   _DSK6713_rset
-00003ed0   _DSK6713_wait
-00003f28   _DSK6713_waitusec
-00003f54   _DSK6713_getVersion
-00004be0   __divull
-00004f60   _free
-000059a0   _cos
-00005fe0   _DSK6713_AIC23_openCodec
-000062e0   _sin
-00006880   _setvbuf
-00006de0   _fputc
-00006de0   _putc
-00007080   _serialPortRcvISR
-00007320   __divul
-000077c0   _atan
-00007a00   _malloc
-00007c40   _memcpy
-00007e80   _HOSTrename
-00008280   _DSK6713_LED_init
-000082c0   _DSK6713_LED_off
-00008330   _DSK6713_LED_on
-000083a0   _DSK6713_LED_toggle
-00008460   _IRQ_map
-00008620   _fseek
-000087e0   _MCBSP_reset
-00008cc0   _atan2
-00008e60   _HOSTlseek
-00008fc0   __closefile
-00009120   _HOSTread
-00009260   __frcmpyd_div
-000093a0   _atoi
-000094e0   _ltoa
-00009620   _DSK6713_AIC23_rset
-000096b8   _DSK6713_AIC23_rget
-000096e0   _DSK6713_AIC23_config
-00009760   _HOSTopen
-00009880   _HOSTwrite
-000099a0   __wrt_ok
-00009ac0   _close
-00009be0   _frexp
-00009d00   _memset
-00009e20   _HOSTclose
-00009f20   _HOSTunlink
-0000a020   _MCBSP_open
-0000a120   _MCBSP_start
-0000a220   __auto_init
-0000a420   __divli
-0000a620   _lseek
-0000a720   _printf
-0000a820   _write
-0000a920   __cleanup
-0000aa00   __doflush
-0000aca0   __nround
-0000ad80   __strasg
-0000ae60   _exit
-0000b020   _modf
-0000b1e0   __c6xabi_divu
-0000b1e0   __divu
-0000b2a0   _copy_in
-0000b420   _DSK6713_AIC23_setFreq
-0000b4e0   __fixdli
-0000b580   __mpyll
-0000b620   __remli
-0000b6c0   _readmsg
-0000b800   _unlink
-0000b8a0   _writemsg
-0000b918   C$$IO$$
-0000b940   ___TI_cpp_init
-0000b9c0   __fltlid
-0000ba40   __llshl
-0000bac0   _c_int00
-0000bb40   _memccpy
-0000bbc0   ___isinf
-0000bc20   __llshru
-0000bc80   __subcull
-0000bce0   _IRQ_enable
-0000bd60   __args_main
-0000bda0   __trunc
-0000bde0   _IRQ_globalDisable
-0000be00   _IRQ_globalEnable
-0000be20   _IRQ_nmiEnable
-0000be40   _MCBSP_read
-0000be60   _MCBSP_write
-0000be80   __negll
-0000bea0   __nop
-0000bf00   C$$EXIT
-0000bf00   _abort
-0000bf20   _remove
-0000bf40   __IRQ_hookFetchPacket
-0000bf60   ___etext__
-0000bf60   _buf
-0000bf60   etext
-0000c050   _matchedFilterCosine
-0000c140   _matchedFilterSine
-0000c230   _corr_max
-0000c234   _corr_max_s
-0000c238   _corr_max_c
-0000c23c   _corr_c
-0000c41c   _corr_s
-0000c5fc   _s
-0000c7dc   _corr_max_lag
-0000c7de   _bufindex
-0000c7e0   _zc
-0000c7e4   _zs
-0000c7e8   _z
-0000c7ec   _i
-0000c7ee   _j
-0000c7f0   _k
-0000c7f8   _t
-0000c800   _x
-0000c808   _y
-0000c810   _bbsinc
-0000d814   _recbuf
-0000e9f4   _yc
-0000fbd4   _ys
-00010db4   _recbufindex
-00010db8   _state
-00010dbc   _vclock_counter
-00010dbe   _recbuf_start_clock
-00010dc0   _coarse_delay_estimate
-00010e24   _fine_delay_estimate
-00010eec   _cde_index
-00010eee   _fde_index
-00010ef0   _local_carrier_phase
-00010ef1   _r
-00010ef8   _phase_correction_factor
-00010f00   _max_samp
-00010f02   _vir_clock_start
-00010f04   _CurTime
-00010f06   _halfSinc
-00010f08   _transmitSincPulseBuffer
-0001170a   _response_done
-0001170c   _response_buf_idx
-0001170e   _response_buf_idx_max
-00011710   _amSending
-00011712   _ClockPulse
-00011714   _calculation_done
-00011718   _v_clk
-0001171e   _pulse_counter
-00011720   _tempOutput
-00011724   _tempInput
-00011728   _hCodec
-0001172c   _config
-00011754   __ftable
-00011934   __tmpnams
-00011a74   __ft_end
-00011bbc   __IRQ_eventTable
-00011c40   __IRQ_intTable
-00011c80   __IRQ_dispatchTable
-00011d98   __MCBSP_hDev0
-00011d9c   __MCBSP_hDev1
-00011de8   __cleanup_ptr
-00011dec   __dtors_ptr
-00011df0   ___TI_enable_exit_profile_output
-00011df4   _DSK6713_AIC23_codeccontrolhandle
-00011df8   _DSK6713_AIC23_codecdatahandle
-00011dfc   __lock
-00011e00   __unlock
-00011e14   _errno
-00011e1c   _DSK6713_version
-00011e20   ___cinit__
-00011e20   cinit
-000123b8   __stack
-000127b8   __STACK_END
-000127b8   __sys_memory
-00012bb8   __ctypes_
-00012d48   __CIOBUF_
+000009e0   _runReceivedPulseBufferDownmixing
+00000ccc   _quarterWavePulseDownmix
+00000fa8   _SetupTransmitModulatedSincPulseBuffer
+00001414   _setupTransmitBuffer
+0000160c   _SetupReceiveBasebandSincPulseBuffer
+00001798   _setupBasebandSincBuffer
+00001930   _SetupReceiveTrigonometricMatchedFilters
+00001acc   _setupQuadratureCarrierWaveFilterBuffer
+00001c78   _calculateNewResponseTimeMaster
+00001c94   _calculateNewSynchronizationTimeSlave
+00001cb0   _GetPulseIndex
+00001d24   _sumFloatArray
+00001dc0   _sumIntArray
+00001e60   _calculateNewSynchronizationTimeSlaveCoarse
+00001e7c   _calculateNewResponseTimeMasterCoarse
+00001e98   _calculateNewResponseBufferMaster
+00001eb8   _calculateNewVerifBufferSlave
+00001ed8   _calculateNewResponseTimeMasterFine
+00001ef8   _calculateNewSynchronizationTimeSlaveFine
+00001f18   _masterMirrorResponseTime
+00002028   _getMasterDelayLevelFromResponseTime
+0000205c   _getMasterIntegerResponseTime
+00002080   _main
+00002458   _runSearchingStateCodeISR
+000027bc   _runRecordingStateCodeISR
+00002844   _runCalculationStateCodeISR
+0000284c   _runSincPulseTransmitISR
+00002908   _runVerifyPulseTransmitISR
+000029a0   __divd
+00003dc0   _gpioInit
+00003f80   _gpioToggle
+00004088   _ToggleDebugGPIO
+00004340   __printfi
+000048a0   _fputs
+00004dac   _DSK6713_init
+000050c8   _DSK6713_rget
+000050dc   _DSK6713_rset
+000050f0   _DSK6713_wait
+00005148   _DSK6713_waitusec
+00005174   _DSK6713_getVersion
+00005e00   __divull
+00006180   _free
+00006bc0   _cos
+00007200   _DSK6713_AIC23_openCodec
+00007500   _sin
+00007aa0   _setvbuf
+00008000   _fputc
+00008000   _putc
+000082a0   _serialPortRcvISR
+00008520   __divul
+000089c0   _atan
+00008c00   _malloc
+00008e40   _memcpy
+00009080   _HOSTrename
+00009480   _DSK6713_LED_init
+000094c0   _DSK6713_LED_off
+00009530   _DSK6713_LED_on
+000095a0   _DSK6713_LED_toggle
+00009660   _IRQ_map
+00009820   _fseek
+000099e0   _MCBSP_reset
+00009ec0   _atan2
+0000a060   _HOSTlseek
+0000a1c0   __closefile
+0000a320   _HOSTread
+0000a460   __frcmpyd_div
+0000a5a0   __c6xabi_strasgi
+0000a5a0   __strasgi
+0000a6e0   _atoi
+0000a820   _ltoa
+0000a960   _DSK6713_AIC23_rset
+0000a9f8   _DSK6713_AIC23_rget
+0000aa20   _DSK6713_AIC23_config
+0000aaa0   _HOSTopen
+0000abc0   _HOSTwrite
+0000ace0   __wrt_ok
+0000ae00   _close
+0000af20   _frexp
+0000b040   _memset
+0000b160   _HOSTclose
+0000b260   _HOSTunlink
+0000b360   _MCBSP_open
+0000b460   _MCBSP_start
+0000b560   __auto_init
+0000b760   __divli
+0000b960   _lseek
+0000ba60   _printf
+0000bb60   _write
+0000bc60   __cleanup
+0000bd40   __doflush
+0000bfe0   __nround
+0000c0c0   __strasg
+0000c1a0   _exit
+0000c360   _modf
+0000c520   _GPIO_open
+0000c5e0   _GPIO_reset
+0000c6a0   __c6xabi_divu
+0000c6a0   __divu
+0000c760   _copy_in
+0000c8e0   _DSK6713_AIC23_setFreq
+0000c9a0   __fixdli
+0000ca40   __mpyll
+0000cae0   __remli
+0000cb80   _readmsg
+0000ccc0   _unlink
+0000cd60   _writemsg
+0000cdd8   C$$IO$$
+0000ce00   _GPIO_config
+0000ce80   ___TI_cpp_init
+0000cf00   __fltlid
+0000cf80   __llshl
+0000d000   _c_int00
+0000d080   _memccpy
+0000d100   _GPIO_pinDirection
+0000d160   ___isinf
+0000d1c0   __llshru
+0000d220   __subcull
+0000d280   _GPIO_pinEnable
+0000d2c0   _GPIO_pinWrite
+0000d300   _IRQ_enable
+0000d380   __args_main
+0000d3c0   __trunc
+0000d400   _IRQ_globalDisable
+0000d420   _IRQ_globalEnable
+0000d440   _IRQ_nmiEnable
+0000d460   _MCBSP_read
+0000d480   _MCBSP_write
+0000d4a0   __negll
+0000d4c0   __nop
+0000d520   C$$EXIT
+0000d520   _abort
+0000d540   _remove
+0000d560   __IRQ_hookFetchPacket
+0000d580   ___etext__
+0000d580   _buf
+0000d580   etext
+0000d670   _matchedFilterCosine
+0000d760   _matchedFilterSine
+0000d850   _corr_max
+0000d854   _corr_max_s
+0000d858   _corr_max_c
+0000d85c   _corr_c
+0000da3c   _corr_s
+0000dc1c   _s
+0000ddfc   _corr_max_lag
+0000ddfe   _bufindex
+0000de00   _corrSumCosine
+0000de04   _corrSumSine
+0000de08   _corrSumIncoherent
+0000de0c   _i
+0000de0e   _j
+0000de10   _k
+0000de18   _t
+0000de20   _x
+0000de28   _y
+0000de30   _basebandSincRef
+0000ee34   _recbuf
+00010014   _downMixedCosine
+000111f4   _downMixedSine
+000123d4   _recbufindex
+000123d6   _local_carrier_phase
+000123d7   _r
+000123d8   _phase_correction_factor
+000123e0   _max_samp
+000123e4   _recbuf_start_clock
+000123e8   _vclock_counter
+000123ec   _tClockSincPulse
+00012bf0   _tVerifSincPulse
+000133f4   _tVerifSincPulsePhased
+00013bf6   _tCoarseVerifSincePulseFlag
+00013bf8   _virClockTransmitCenterSinc
+00013bfc   _virClockTransmitCenterVerify
+00013c00   _coarse_delay_estimate
+00013c40   _fine_delay_estimate
+00013c80   _coarse_master_clock_estimate
+00013cc0   _fine_master_clock_estimate
+00013d00   _cde_index
+00013d02   _fde_index
+00013d04   _state
+00013d06   _searchingStateTimeoutCounter
+00013d08   _tempOutput
+00013d0c   _tempInput
+00013d10   _hCodec
+00013d14   _config
+00013d3c   __ftable
+00013f1c   __tmpnams
+0001405c   __ft_end
+000141a4   __IRQ_eventTable
+00014228   __IRQ_intTable
+00014268   __IRQ_dispatchTable
+00014380   __MCBSP_hDev0
+00014384   __MCBSP_hDev1
+000143bc   __GPIO_intTable
+000143d0   __hGpioDev0
+000143f4   __cleanup_ptr
+000143f8   __dtors_ptr
+000143fc   ___TI_enable_exit_profile_output
+00014400   _DSK6713_AIC23_codeccontrolhandle
+00014404   _DSK6713_AIC23_codecdatahandle
+00014408   __lock
+0001440c   __unlock
+00014420   _hGpio
+00014424   _errno
+0001442c   _DSK6713_version
+00014430   ___cinit__
+00014430   cinit
+000149d0   __stack
+00014dd0   __STACK_END
+00014dd0   __sys_memory
+000151d0   __ctypes_
+0001537c   __CIOBUF_
 ffffffff   ___TI_pprof_out_hndl
 ffffffff   ___TI_prof_data_size
 ffffffff   ___TI_prof_data_start
@@ -633,4 +708,4 @@ ffffffff   ___pinit__
 ffffffff   binit
 ffffffff   pinit
 
-[205 symbols]
+[234 symbols]

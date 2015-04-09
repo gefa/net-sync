@@ -4,12 +4,14 @@
 
 SHELL = cmd.exe
 
-CG_TOOL_ROOT := C:/TI_DSK/ccsv6/tools/compiler/c6000_7.4.8
+CG_TOOL_ROOT := C:/ti/ccsv6/tools/compiler/c6000_7.4.8
 
 ORDERED_OBJS += \
 $(GEN_CMDS__FLAG) \
-"./time_stamper_master.obj" \
 "./vectors.obj" \
+"./time_stamper_master.obj" \
+"./MathCalculations.obj" \
+"./DebugTools.obj" \
 "../C6713.cmd" \
 -l"libc.a" \
 -l"C:\Program Files\C6xCSL\lib_3x\csl6713.lib" \
@@ -130,21 +132,21 @@ all: time_stamper_master.out
 time_stamper_master.out: $(OBJS) $(CMD_SRCS) $(GEN_CMDS)
 	@echo 'Building target: $@'
 	@echo 'Invoking: C6000 Linker'
-	"C:/TI_DSK/ccsv6/tools/compiler/c6000_7.4.8/bin/cl6x" -mv6713 --abi=coffabi -g --define=CHIP_6713 --display_error_number --diag_warning=225 --diag_wrap=off --mem_model:const=far --mem_model:data=far -z --stack_size=0x400 -m"time_stamper_master.map" --heap_size=0x400 -i"C:/TI_DSK/ccsv6/tools/compiler/c6000_7.4.8/lib" -i"C:/TI_DSK/ccsv6/tools/compiler/c6000_7.4.8/include" --reread_libs --warn_sections --display_error_number --diag_wrap=off --xml_link_info="time_stamper_master_linkInfo.xml" --rom_model -o "time_stamper_master.out" $(ORDERED_OBJS)
+	"C:/ti/ccsv6/tools/compiler/c6000_7.4.8/bin/cl6x" -mv6713 --abi=coffabi -g --define=CHIP_6713 --display_error_number --diag_warning=225 --diag_wrap=off --mem_model:const=far --mem_model:data=far -z --stack_size=0x400 -m"time_stamper_master.map" --heap_size=0x400 -i"C:/ti/ccsv6/tools/compiler/c6000_7.4.8/lib" -i"C:/ti/ccsv6/tools/compiler/c6000_7.4.8/include" --reread_libs --warn_sections --display_error_number --diag_wrap=off --xml_link_info="time_stamper_master_linkInfo.xml" --rom_model -o "time_stamper_master.out" $(ORDERED_OBJS)
 	@echo 'Finished building target: $@'
 	@echo ' '
 
 time_stamper_master.hex: $(EXE_OUTPUTS)
 	@echo 'Invoking: C6000 Hex Utility'
-	"C:/TI_DSK/ccsv6/tools/compiler/c6000_7.4.8/bin/hex6x"  -o "time_stamper_master.hex" $(EXE_OUTPUTS__QUOTED)
+	"C:/ti/ccsv6/tools/compiler/c6000_7.4.8/bin/hex6x"  -o "time_stamper_master.hex" $(EXE_OUTPUTS__QUOTED)
 	@echo 'Finished building: $@'
 	@echo ' '
 
 # Other Targets
 clean:
 	-$(RM) $(EXE_OUTPUTS__QUOTED)$(BIN_OUTPUTS__QUOTED)
-	-$(RM) "time_stamper_master.pp" 
-	-$(RM) "time_stamper_master.obj" "vectors.obj" 
+	-$(RM) "DebugTools.pp" "MathCalculations.pp" "time_stamper_master.pp" 
+	-$(RM) "DebugTools.obj" "MathCalculations.obj" "time_stamper_master.obj" "vectors.obj" 
 	-$(RM) "vectors.pp" 
 	-@echo 'Finished clean'
 	-@echo ' '
