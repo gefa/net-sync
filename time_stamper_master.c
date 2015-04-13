@@ -26,7 +26,7 @@
 #define SLAVE_NODE 	2
 
 //Node type - This changes whether setting
-#define NODE_TYPE SLAVE_NODE
+#define NODE_TYPE MASTER_NODE
 
 //Audio codec sample frequency
 #define DSK_SAMPLE_FREQ DSK6713_AIC23_FREQ_8KHZ
@@ -89,6 +89,7 @@
 #define STATE_RECORDING 1
 #define STATE_CALCULATION 2
 #define STATE_TRANSMIT 3
+#define STATE_SENDSINC 4
 
 // define PI and INVPI
 #define PI 3.14159265358979323846
@@ -145,7 +146,7 @@ float basebandSincRef[2*N+1];   		// baseband sinc pulse buffer
 float recbuf[2*N+2*M]; 		// recording buffer
 float downMixedCosine[2*N+2*M];     		// in-phase downmixed buffer
 float downMixedSine[2*N+2*M];     		// quadrature downmixed buffer
-short recbufindex = 0;		//
+volatile short recbufindex = 0;		//
 
 #if (NODE_TYPE == MASTER_NODE)//if master, listen to slave first and then send the sinc back
 volatile int state = STATE_SEARCHING;
@@ -154,6 +155,10 @@ volatile int state = STATE_TRANSMIT;
 #endif
 
 volatile short vclock_counter = 0;	// virtual clock counter
+volatile short vclock_complement = 0;	// VCLK_MAX - vclock_counter
+volatile short max_recbuf = 0;
+volatile short playback_scale = 1;
+volatile short wait_count = 0;
 volatile int myage = 0;
 volatile short dedicated_clk = 0;	// make decision at fixed time after sinc peak center
 
@@ -207,6 +212,7 @@ volatile short response_buf_idx = 0; 					//index for output buffer
 volatile short response_buf_idx_clk = 0; 					//another index for output buffer
 volatile short response_buf_idx_max = OUTPUT_BUF_SIZE;
 volatile short amSending = 0;			//control var for starting the sending of the response from master
+volatile short amWaiting = 0;			//control var for starting the waiting process before master's response
 volatile short sinc_launch = 0;
 volatile short sinc_roundtrip_time ;
 volatile short vclock_offset ;
@@ -276,6 +282,7 @@ short isSincInSameWindowHuh(short curClock, short delayEstimate);
 //State functions run during ISR
 void runSearchingStateCodeISR();
 void runRecordingStateCodeISR();
+void playRecordingStateCodeISR();
 void runCalculationStateCodeISR();
 void runResponseStateCodeISR();
 
@@ -381,110 +388,110 @@ void main()
 			else if (state==STATE_CALCULATION) {
 				//printf wrecks the real-time operation
 				//printf("Buffer recorded: %d %f.\n",recbuf_start_clock,corrSumIncoherent);
-				corrSumIncoherent = 0;  // clear correlation sum
-				// -----------------------------------------------
-				// this is where we estimate the time of arrival
-				// -----------------------------------------------
-				runReceivedPulseBufferDownmixing();
-				runReceviedSincPulseTimingAnalysis();
-
-//				tempOutput.channel[TRANSMIT_SINC] = 15000;
-//				tempOutput.channel[1] = 0;
-//				MCBSP_write(DSK6713_AIC23_DATAHANDLE, tempOutput.combo);
-
-				// alternative way - portable code
-				volatile short tick_variable = vclock_counter;//variable tick
-				volatile short tick_center_point = CLOCK_WRAP((short)(fine_delay_estimate[fde_index]));//this does not need to be an array
-				volatile short complement_course_estimate = VCLK_MAX - tick_center_point;
-
-
-				// WE ASSUME THAT dedicated_clk > 0, FOR SOME MORE POWERFUL DSP-s IT MIGHT NOT BE THE CASE
-				volatile short dedicated_clk;
-
-				if(tick_center_point > tick_variable)
-				{
-					dedicated_clk = complement_course_estimate + tick_variable - N;
-				}else{
-					dedicated_clk = tick_variable - tick_center_point - N;
-				}
+//				corrSumIncoherent = 0;  // clear correlation sum
+//				// -----------------------------------------------
+//				// this is where we estimate the time of arrival
+//				// -----------------------------------------------
+//				runReceivedPulseBufferDownmixing();
+//				runReceviedSincPulseTimingAnalysis();
 //
-//				// wait for fixed time after sinc center peak
-//				while(dedicated_clk <= WIDTH15)	;
-//				volatile short tick_fixed = vclock_counter ;
-
-				volatile short tick_fixed = tick_variable ;
-
-				volatile short special_case = -1;
-
-				if(tick_fixed == 0){
-
-					special_case = 0;
-//					// wait 3 overflows
-//					while(vclock_counter != 0); //wait one additional tick
-
-				}else if(tick_fixed>0 && tick_fixed<=dedicated_clk){
-
-					special_case = 1;
-//					// wait 2 overflows
-//					while(vclock_counter != 0); //wait one additional tick
-//					while(vclock_counter != 1); //wait for ISR
-//					while(vclock_counter != 0); //wait one additional tick
-
-				}else if(tick_fixed>dedicated_clk){
-
-					special_case = 0;
-//					// wait 1 overflows
-//					while(vclock_counter != 0); //wait one additional tick
-
-				}/*else{
-
-					state=STATE_CALCULATION;
-					ToggleDebugGPIO(STATE_CALCULATION);
-
-				}*/
-
-				//vir_clock_start = CLOCK_WRAP(complement_course_estimate - N);// start half sinc before sinc center peak
-
-				volatile short tick_complement = VCLK_MAX - tick_variable;
-				//volatile short wait_ticks = tick_complement + dedicated_clk + tick_complement;
-
-				if(!special_case)
-				{
-					volatile short wait_ticks = tick_complement + dedicated_clk + tick_complement;
-					calc_head = INDEX_WRAP(run_head + wait_ticks);
-				}else{
-					volatile short wait_ticks = tick_complement + VCLK_MAX + complement_course_estimate - N;
-					calc_head = INDEX_WRAP(run_head + wait_ticks);
-				}
-
-				if(calc_head < run_head)
-				{
-					index_history[1][myage] = (int)calc_head;
-					index_history[2][myage] = (int)run_head;
-					index_history[2][myage] = (int)(calc_head - run_head);
-					myage++;
-					if(myage==HISTORY)
-						myage = 0;
-				}
-				// two cases
-				// where to put the sinc
-				// calc_head =
-
-				//for debug only... copy zero-delayed sinc to appropriate location
-				for (i=-N;i<=N;i++)
-					MR[INDEX_WRAP(calc_head + i + N)] =  allMyDelayedWaveforms[0][i + N];
-
-				//run recalculation, call that function below
-				SetupTransmitModulatedSincPulseBufferDelayedFine(fine_delay_estimate[fde_index]);
-
-				// no transmit state anymore, when done calculating jusmp to searchiong state
-				state=STATE_SEARCHING;
-				DSK6713_LED_off(STATE_CALCULATION);
-				DSK6713_LED_on(STATE_SEARCHING);
-
-//				state = STATE_TRANSMIT; //set to response for the ISR to pick the appropriate path
-//				ToggleDebugGPIO(STATE_TRANSMIT);
-//				while(state == STATE_TRANSMIT) ; //Loop and wait here until the responding output code works
+////				tempOutput.channel[TRANSMIT_SINC] = 15000;
+////				tempOutput.channel[1] = 0;
+////				MCBSP_write(DSK6713_AIC23_DATAHANDLE, tempOutput.combo);
+//
+//				// alternative way - portable code
+//				volatile short tick_variable = vclock_counter;//variable tick
+//				volatile short tick_center_point = CLOCK_WRAP((short)(fine_delay_estimate[fde_index]));//this does not need to be an array
+//				volatile short complement_course_estimate = VCLK_MAX - tick_center_point;
+//
+//
+//				// WE ASSUME THAT dedicated_clk > 0, FOR SOME MORE POWERFUL DSP-s IT MIGHT NOT BE THE CASE
+//				volatile short dedicated_clk;
+//
+//				if(tick_center_point > tick_variable)
+//				{
+//					dedicated_clk = complement_course_estimate + tick_variable - N;
+//				}else{
+//					dedicated_clk = tick_variable - tick_center_point - N;
+//				}
+////
+////				// wait for fixed time after sinc center peak
+////				while(dedicated_clk <= WIDTH15)	;
+////				volatile short tick_fixed = vclock_counter ;
+//
+//				volatile short tick_fixed = tick_variable ;
+//
+//				volatile short special_case = -1;
+//
+//				if(tick_fixed == 0){
+//
+//					special_case = 0;
+////					// wait 3 overflows
+////					while(vclock_counter != 0); //wait one additional tick
+//
+//				}else if(tick_fixed>0 && tick_fixed<=dedicated_clk){
+//
+//					special_case = 1;
+////					// wait 2 overflows
+////					while(vclock_counter != 0); //wait one additional tick
+////					while(vclock_counter != 1); //wait for ISR
+////					while(vclock_counter != 0); //wait one additional tick
+//
+//				}else if(tick_fixed>dedicated_clk){
+//
+//					special_case = 0;
+////					// wait 1 overflows
+////					while(vclock_counter != 0); //wait one additional tick
+//
+//				}/*else{
+//
+//					state=STATE_CALCULATION;
+//					ToggleDebugGPIO(STATE_CALCULATION);
+//
+//				}*/
+//
+//				//vir_clock_start = CLOCK_WRAP(complement_course_estimate - N);// start half sinc before sinc center peak
+//
+//				volatile short tick_complement = VCLK_MAX - tick_variable;
+//				//volatile short wait_ticks = tick_complement + dedicated_clk + tick_complement;
+//
+//				if(!special_case)
+//				{
+//					volatile short wait_ticks = tick_complement + dedicated_clk + tick_complement;
+//					calc_head = INDEX_WRAP(run_head + wait_ticks);
+//				}else{
+//					volatile short wait_ticks = tick_complement + VCLK_MAX + complement_course_estimate - N;
+//					calc_head = INDEX_WRAP(run_head + wait_ticks);
+//				}
+//
+//				if(calc_head < run_head)
+//				{
+//					index_history[1][myage] = (int)calc_head;
+//					index_history[2][myage] = (int)run_head;
+//					index_history[2][myage] = (int)(calc_head - run_head);
+//					myage++;
+//					if(myage==HISTORY)
+//						myage = 0;
+//				}
+//				// two cases
+//				// where to put the sinc
+//				// calc_head =
+//
+//				//for debug only... copy zero-delayed sinc to appropriate location
+//				for (i=-N;i<=N;i++)
+//					MR[INDEX_WRAP(calc_head + i + N)] =  allMyDelayedWaveforms[0][i + N];
+//
+//				//run recalculation, call that function below
+//				SetupTransmitModulatedSincPulseBufferDelayedFine(fine_delay_estimate[fde_index]);
+//
+//				// no transmit state anymore, when done calculating jusmp to searchiong state
+//				state=STATE_SEARCHING;
+//				DSK6713_LED_off(STATE_CALCULATION);
+//				DSK6713_LED_on(STATE_SEARCHING);
+//
+////				state = STATE_TRANSMIT; //set to response for the ISR to pick the appropriate path
+////				ToggleDebugGPIO(STATE_TRANSMIT);
+////				while(state == STATE_TRANSMIT) ; //Loop and wait here until the responding output code works
 
 
 			}
@@ -534,18 +541,14 @@ void main()
 				//if(tick_variable<tick_center_point)
 				//	sinc_roundtrip_time -= VCLK_MAX;
 
-				debug_history[age][0]=tick_center_point;
-				debug_history[age][1]=tick_variable;
-				debug_history[age][2]=sinc_launch;
-				debug_history[age][3]=sinc_roundtrip_time;
+				debug_history[0][age]=tick_center_point;
+				debug_history[1][age]=tick_variable;
+				debug_history[2][age]=sinc_launch;
+				debug_history[3][age]=sinc_roundtrip_time;
 				age++;
 				if(age==HISTORY)
 					age=0;
 
-//				if((sinc_roundtrip_time & 1)==0)//if even
-//					even = 1;
-//				else
-//					even = 0;
 
 				vclock_offset = sinc_roundtrip_time>>1;//divide by 2
 				vclock_offset = CLOCK_WRAP(vclock_offset-1); //Actually offsets properly
@@ -594,19 +597,24 @@ interrupt void serialPortRcvISR()
 
 		if (vclock_counter>=(VCLK_MAX)) {
 			vclock_counter = 0; // wrap
+			if(state == STATE_CALCULATION)
+				state = STATE_TRANSMIT;
 			//tempOutput.channel[TRANSMIT_CLOCK] = 32000; //Left channel for debug, doesn't really do anything
-			clk_flag = 1;
+			//clk_flag = 1;
 		}
 		else{
 			tempOutput.channel[TRANSMIT_CLOCK] = 0; //Left channel for debug, doesn't really do anything
 		}
 
-		tempOutput.channel[TRANSMIT_SINC] = ML[INDEX_WRAP(run_head)];
-		ML[INDEX_WRAP(run_head)] = 0;	// zero the buffer after we use it
+		if(vclock_counter == (4096-512))
+			clk_flag = 1;
 
-		//just for debug output zero-delayed clock sinc along with master's response sinc
-		tempOutput.channel[TRANSMIT_CLOCK] = MR[INDEX_WRAP(run_head)];
-		MR[INDEX_WRAP(run_head)] = 0;	// zero the buffer after we use it
+//		tempOutput.channel[TRANSMIT_SINC] = ML[INDEX_WRAP(run_head)];
+//		ML[INDEX_WRAP(run_head)] = 0;	// zero the buffer after we use it
+//
+//		//just for debug output zero-delayed clock sinc along with master's response sinc
+//		tempOutput.channel[TRANSMIT_CLOCK] = MR[INDEX_WRAP(run_head)];
+//		MR[INDEX_WRAP(run_head)] = 0;	// zero the buffer after we use it
 
 		if(clk_flag)
 			runResponseClkSinc();
@@ -614,7 +622,7 @@ interrupt void serialPortRcvISR()
 	#elif(NODE_TYPE==SLAVE_NODE)
 
 		run_head = CLOCK_WRAP(++run_head);
-		run_head_sl = INDEX_WRAP(++run_head_sl);
+		//run_head_sl = INDEX_WRAP(++run_head_sl);
 
 		if (vclock_counter>=(VCLK_MAX)){ //runs at 1/2x rate of master for clock pulses, might want to switch variables?
 			vclock_counter = 0;
@@ -626,7 +634,8 @@ interrupt void serialPortRcvISR()
 			//tempOutput.channel[TRANSMIT_CLOCK] = 0;
 		}
 
-		tempOutput.channel[TRANSMIT_CLOCK] = SR[CLOCK_WRAP(vclock_counter)];
+		// dynamicly delayed clock tick (sinc)
+		//tempOutput.channel[TRANSMIT_CLOCK] = SR[CLOCK_WRAP(vclock_counter)];
 		//SR[CLOCK_WRAP(vclock_counter)] = 0;	// zero the clock buffer after
 
 		// incomming sinc from slave
@@ -635,13 +644,16 @@ interrupt void serialPortRcvISR()
 		// update sinc start virtual clock
 
 		if (sinc_launch>=4) {//x*VCLK_MAX, x dictates the timeout, 3 should be enough
-			//sinc_launch = 0; //
+			sinc_launch = 0; //
 			state=STATE_TRANSMIT;//timeout reached, no sinc reflected from master, send sinc again
 			//state=STATE_SEARCHING;
 			DSK6713_LED_off(STATE_CALCULATION);
 			DSK6713_LED_on(STATE_TRANSMIT);
 			ToggleDebugGPIO(STATE_TRANSMIT);
 		}
+
+		if(clk_flag)
+			runResponseClkSinc();
 
 
 	#endif
@@ -658,13 +670,71 @@ interrupt void serialPortRcvISR()
 			runSearchingStateCodeISR();
 		}
 		else if (state==STATE_RECORDING) {
-			runRecordingStateCodeISR();
+			//runRecordingStateCodeISR();
+			recbuf[recbufindex] = (float) tempInput.channel[RECEIVE_SINC];  // right channel
+			if (abs(recbuf[recbufindex])>max_recbuf) {
+
+				max_recbuf = abs(recbuf[recbufindex]); // keep track of largest sample
+
+			}
+			recbufindex++;
+			if (recbufindex==(2*N+2*M)) {
+				//CurTime = vclock_counter;
+				//recbufindex--;
+				state = STATE_CALCULATION;  // buffer is full (stop recording)
+				DSK6713_LED_off(STATE_RECORDING);
+				DSK6713_LED_on(STATE_CALCULATION);
+				ToggleDebugGPIO(STATE_CALCULATION);
+				//recbufindex = 0; // shouldn't be necessary
+				if (max_recbuf<2048)
+					playback_scale = 0;  // don't send response (signal was too weak)
+				else if (max_recbuf<4096)
+					playback_scale = 8;  // reply and scale by 8
+				else if (max_recbuf<8192)
+					playback_scale = 4;  // reply and scale by 4
+				else if (max_recbuf<16384)
+					playback_scale = 2;  // reply and scale by 2
+				else
+					playback_scale = 1;  // no scaling
+			}
+
+			//vclock_complement = VCLK_MAX - vclock_counter;
+
+
 		}
-		else if(state==STATE_CALCULATION){
-			runCalculationStateCodeISR();
+		else if(state==STATE_CALCULATION){// use if instead of "else if" because when state changes we jump in the next state in within the same ISR
+			//runCalculationStateCodeISR();
+//			if (vclock_counter == 0){	// wait for the tick
+//				amWaiting = 1;
+//			}
+//			if (amWaiting)
+//				if (vclock_counter == vclock_complement)	// wait for complement
+//				{
+//					state=STATE_TRANSMIT;//
+//					DSK6713_LED_off(STATE_CALCULATION);
+//					DSK6713_LED_on(STATE_TRANSMIT);
+//					amWaiting = 0;
+//				}
+			wait_count++;//on overflow state changes
+
 		}
 		else if(state==STATE_TRANSMIT){// doesn't have transmit state, in fact it always transmits but mostly zeroes
 			//runResponseStateCodeISR();
+			//playRecordingStateCodeISR();
+			wait_count--;
+			if(wait_count==0){
+				state = STATE_SENDSINC;
+				recbufindex=(2*N+2*M);
+			}
+		}else if(state==STATE_SENDSINC){
+			recbufindex--;
+			if (recbufindex>=0) {
+				tempOutput.channel[TRANSMIT_SINC] = playback_scale*recbuf[recbufindex];
+			}
+			else
+			{
+				state = STATE_SEARCHING;  // go back to searching
+			}
 		}
 
 	//Run all interrupt routines for the slave node here
@@ -684,6 +754,7 @@ interrupt void serialPortRcvISR()
 			// transmit initial sinc to master (beg for some precision)
 			// transmit tick when virtual clock is at 0.5*VCLK_MAX
 			// minus N is to center the peak of the sinc at the tick
+
 			vir_clock_start = VCLK_MAX-N-(VCLK_MAX>>1);	// subject to change
 
 			runResponseStateCodeISR();//this function will change state when it's done
@@ -972,7 +1043,7 @@ void runSearchingStateCodeISR(){
 	corrSumIncoherent = corrSumCosine*corrSumCosine+corrSumSine*corrSumSine;
 
 	if ((corrSumIncoherent>T1)&&(local_carrier_phase==0)) {  // xxx should make sure this runs in real-time
-		state = STATE_RECORDING; // enter "recording" state (takes effect in next interrupt)
+		state = STATE_RECORDING; // enter "recording" state (takes effect in next interrupt), NO it takes effect in the same ISR (if instead of elseif)
 		DSK6713_LED_off(STATE_SEARCHING);
 		DSK6713_LED_on(STATE_RECORDING);
 		ToggleDebugGPIO(STATE_RECORDING);
@@ -1004,6 +1075,21 @@ void runRecordingStateCodeISR(){
 	}
 }
 
+void playRecordingStateCodeISR(){
+	// put sample in recording buffer
+	tempOutput.channel[TRANSMIT_SINC] = ((short) recbuf[recbufindex])<<1; // right channel
+	recbufindex--;
+
+	if (recbufindex==0) {
+		//CurTime = vclock_counter;
+		state = STATE_SEARCHING;  // buffer is full (stop recording)
+		DSK6713_LED_off(STATE_TRANSMIT);
+		DSK6713_LED_on(STATE_SEARCHING);
+		ToggleDebugGPIO(STATE_SEARCHING);
+		//recbufindex = 0; // shouldn't be necessary
+	}
+}
+
 void runCalculationStateCodeISR(){
 
 	//dedicated_clk++;
@@ -1013,8 +1099,8 @@ void runCalculationStateCodeISR(){
 
 void runResponseStateCodeISR(){
 	if(vclock_counter==vir_clock_start){ //Okay, we've reached the appropriate wrap around point where we should start sending the dataers
-		amSending = 1;
-		sinc_launch = -1;//center outgoing tick at virtual tick
+		amSending = -1;
+		//sinc_launch = -1;//center outgoing tick at virtual tick
 						 // start at -1 since we dont want to count the first overflow (happens right away) since it is zero-th point
 	}
 	if(amSending){ //write the buffered output waveform to the output file, adn increment the index counter
@@ -1036,7 +1122,7 @@ void runResponseClkSinc(){
 	//if(even)
 	//	tempOutput.channel[TRANSMIT_CLOCK] = tModulatedSincPulse[response_buf_idx_clk];
 	//else	//odd
-		tempOutput.channel[TRANSMIT_CLOCK] = tModulatedSincPulse_delayed[response_buf_idx_clk];
+		tempOutput.channel[TRANSMIT_CLOCK] = tModulatedSincPulse[response_buf_idx_clk];
 
 	response_buf_idx_clk++;
 
