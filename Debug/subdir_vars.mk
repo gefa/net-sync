@@ -10,42 +10,30 @@ ASM_SRCS += \
 ../vectors.asm 
 
 C_SRCS += \
-../DebugTools.c \
-../MathCalculations.c \
-../time_stamper_master.c 
+../time_stamper_slave.c 
 
 OBJS += \
-./DebugTools.obj \
-./MathCalculations.obj \
-./time_stamper_master.obj \
+./time_stamper_slave.obj \
 ./vectors.obj 
 
 ASM_DEPS += \
 ./vectors.pp 
 
 C_DEPS += \
-./DebugTools.pp \
-./MathCalculations.pp \
-./time_stamper_master.pp 
+./time_stamper_slave.pp 
 
 C_DEPS__QUOTED += \
-"DebugTools.pp" \
-"MathCalculations.pp" \
-"time_stamper_master.pp" 
+"time_stamper_slave.pp" 
 
 OBJS__QUOTED += \
-"DebugTools.obj" \
-"MathCalculations.obj" \
-"time_stamper_master.obj" \
+"time_stamper_slave.obj" \
 "vectors.obj" 
 
 ASM_DEPS__QUOTED += \
 "vectors.pp" 
 
 C_SRCS__QUOTED += \
-"../DebugTools.c" \
-"../MathCalculations.c" \
-"../time_stamper_master.c" 
+"../time_stamper_slave.c" 
 
 ASM_SRCS__QUOTED += \
 "../vectors.asm" 

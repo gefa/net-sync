@@ -54,4 +54,5 @@ SECTIONS
     .rodata        >  IRAM
     .c6xabi.exidx  >  IRAM
     .c6xabi.extab  >  IRAM
+    .mydata		   >  EMIFCE0
 }
