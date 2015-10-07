@@ -21,6 +21,6 @@ The states relate to the image below. Node i is slave, node j is master. Recepti
 #define STATE_TRANSMIT 3
 #define STATE_SENDSINC 4
 
-[sinc pulse exchange](https://cloud.githubusercontent.com/assets/6517379/10353835/0c7e70ec-6d28-11e5-9fd2-2c3349e79b41.png)
+[![sinc pulse exchange](https://cloud.githubusercontent.com/assets/6517379/10353835/0c7e70ec-6d28-11e5-9fd2-2c3349e79b41.png)]
 
 
